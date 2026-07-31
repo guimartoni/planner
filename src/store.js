@@ -178,7 +178,15 @@ export function usePlannerData(prepare) {
       writePlannerDataKeepalive(p);
       dirtyRef.current = false;
     };
-    const onVis = () => { if (document.visibilityState === "hidden") flush(); };
+    /* Ao minimizar/trocar de aba a página continua viva: dá para fazer o
+       salvamento COMPLETO com merge (nunca sobrescreve outra aba). O flush
+       cego via keepalive fica só para o fechamento abrupto (pagehide). */
+    const onVis = () => {
+      if (document.visibilityState === "hidden" && dirtyRef.current) {
+        clearTimeout(saveTimer.current);
+        doSaveRef.current();
+      }
+    };
     window.addEventListener("visibilitychange", onVis);
     window.addEventListener("pagehide", flush);
     window.addEventListener("beforeunload", flush);
