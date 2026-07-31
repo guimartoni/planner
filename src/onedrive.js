@@ -3,8 +3,13 @@ import { getToken } from "./auth.js";
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const FILE_PATH = "/planner-dados.json"; // raiz do OneDrive
 
+/* Último token válido, para o flush de emergência ao fechar a página
+   (nesse momento não dá para esperar uma renovação assíncrona). */
+let cachedToken = null;
+
 async function graphFetch(url, options = {}) {
   const token = await getToken();
+  cachedToken = token;
   const res = await fetch(url, {
     ...options,
     headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) },
@@ -28,5 +33,18 @@ export async function writePlannerData(data) {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Erro ao gravar no OneDrive (HTTP ${res.status})`);
-  return await res.json(); // metadados do arquivo (id, lastModified, etc.)
+  return await res.json();
+}
+
+/* Gravação de emergência (página fechando): melhor esforço, sem await. */
+export function writePlannerDataKeepalive(data) {
+  if (!cachedToken) return;
+  try {
+    fetch(`${GRAPH}/me/drive/root:${FILE_PATH}:/content`, {
+      method: "PUT",
+      keepalive: true,
+      headers: { Authorization: `Bearer ${cachedToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  } catch (e) { /* melhor esforço */ }
 }
