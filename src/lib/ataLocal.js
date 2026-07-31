@@ -1,6 +1,5 @@
 import { dateKeyBR, todayBR } from "./util.js";
 import { bodyText, parseDraftTasks } from "./data.js";
-import { compareBlocks } from "./blocks.js";
 
 /* ------------------------------------------------------------------ */
 /* Gerador LOCAL de atas — custo zero, instantâneo, sem IA.            */
@@ -102,7 +101,7 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
       participantes,
       pauta,
       decisoes,
-      comparativo: prevBlocks ? compareBlocks(prevBlocks, B) : [],
+      comparativo: [],
       acoes,
     };
   }

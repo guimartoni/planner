@@ -30,7 +30,6 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
     const whatsTxt = () => {
       let t = `*📋 ${s0.titulo || "FUP Semanal"}* — _${s0.data || ""}_\n`;
       if (s0.resumo) t += `\n*📝 Resumo*\n${s0.resumo}\n`;
-      if ((s0.comparativo || []).length) t += `\n*📈 Comparativo semanal*\n${s0.comparativo.map((d) => "• " + d).join("\n")}\n`;
       if (openT.length) t += `\n*✅ Ações*\n${openT.map((a) => `• ${a.text}${a.userName ? " — @" + a.userName : ""}${a.date ? " (" + a.date + ")" : ""}`).join("\n")}\n`;
       t += `\n_Planner - Gui - Finamob_`;
       return t;
@@ -49,19 +48,11 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
         </div>
         <FupPanel blocks={body.blocks} prevBlocks={prevBlocks}
           header={{ title: s0.titulo || "FUP semanal", crumb: `FUP ${s0.data || ""}`, badge: "Semana atual" }} />
-        {(s0.resumo || (s0.comparativo || []).length > 0) && (
+        {s0.resumo && (
           <div className="rounded-2xl p-4 mt-3" style={{ background: "#14171C" }}>
             <div className="rounded-xl border p-4" style={{ borderColor: "#2B313A", background: "#1D2127" }}>
-              {s0.resumo && <>
-                <p className="text-sm font-semibold mb-1.5" style={{ color: "#E6E8EB" }}>📝 Resumo</p>
-                <p className="text-sm leading-6 mb-3" style={{ color: "#B7BDC6" }}>{s0.resumo}</p>
-              </>}
-              {(s0.comparativo || []).length > 0 && <>
-                <p className="text-sm font-semibold mb-1.5" style={{ color: "#E6E8EB" }}>📈 Comparativo com a semana anterior</p>
-                {s0.comparativo.map((p, i) => (
-                  <p key={i} className="text-sm leading-6" style={{ color: "#B7BDC6" }}>• {p}</p>
-                ))}
-              </>}
+              <p className="text-sm font-semibold mb-1.5" style={{ color: "#E6E8EB" }}>📝 Resumo</p>
+              <p className="text-sm leading-6" style={{ color: "#B7BDC6" }}>{s0.resumo}</p>
             </div>
           </div>
         )}
@@ -87,13 +78,12 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
   const s = body.structured;
 
   const plain = () =>
-    `ATA DE REUNIÃO — ${s.titulo}\nData: ${s.data}\n\nPARTICIPANTES\n${(s.participantes || []).map((p) => "- " + p).join("\n")}\n\nRESUMO\n${s.resumo}\n${(s.comparativo || []).length ? `\nCOMPARATIVO COM A SEMANA ANTERIOR\n${s.comparativo.map((p) => "- " + p).join("\n")}\n` : ""}\nPAUTA\n${(s.pauta || []).map((p) => "- " + p).join("\n")}\n\nDECISÕES\n${(s.decisoes || []).map((p) => "- " + p).join("\n")}\n\nAÇÕES\n${tasks.map((a) => `- ${a.text} — ${a.userName || "sem responsável"}${a.date ? " — prazo " + a.date : ""}`).join("\n")}`;
+    `ATA DE REUNIÃO — ${s.titulo}\nData: ${s.data}\n\nPARTICIPANTES\n${(s.participantes || []).map((p) => "- " + p).join("\n")}\n\nRESUMO\n${s.resumo}\n\nPAUTA\n${(s.pauta || []).map((p) => "- " + p).join("\n")}\n\nDECISÕES\n${(s.decisoes || []).map((p) => "- " + p).join("\n")}\n\nAÇÕES\n${tasks.map((a) => `- ${a.text} — ${a.userName || "sem responsável"}${a.date ? " — prazo " + a.date : ""}`).join("\n")}`;
 
   const whats = () => {
     let t = `*📋 ATA DE REUNIÃO*\n*${s.titulo}* — _${s.data}_\n\n`;
     if ((s.participantes || []).length) t += `*👥 Participantes:* ${s.participantes.join(", ")}\n\n`;
     if (s.resumo) t += `*📝 Resumo*\n${s.resumo}\n\n`;
-    if ((s.comparativo || []).length) t += `*📈 Comparativo semanal*\n${s.comparativo.map((d) => "• " + d).join("\n")}\n\n`;
     if ((s.decisoes || []).length) t += `*✅ Decisões*\n${s.decisoes.map((d) => "• " + d).join("\n")}\n\n`;
     if (tasks.length) {
       t += `*📌 Ações*\n${tasks.map((a) => `• ${a.text} — *@${a.userName || "a definir"}*${a.date ? ` (🗓 ${a.date})` : ""}`).join("\n")}`;
@@ -150,11 +140,6 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
         <Sec label="Resumo">
           <p className="text-sm leading-7" style={{ color: "#374151" }}>{s.resumo}</p>
         </Sec>
-        {(s.comparativo || []).length > 0 && (
-          <Sec label="📈 Comparativo com a semana anterior">
-            {s.comparativo.map((p, i) => <p key={i} className="text-sm leading-7" style={{ color: "#374151" }}>• {p}</p>)}
-          </Sec>
-        )}
         {(s.pauta || []).length > 0 && (
           <Sec label="Pauta">
             {s.pauta.map((p, i) => <p key={i} className="text-sm leading-7" style={{ color: "#374151" }}>• {p}</p>)}

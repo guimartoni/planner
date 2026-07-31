@@ -80,10 +80,6 @@ export async function ataToPdf({ structured, tasks, blocks }) {
     section("Resumo");
     writeLines(s.resumo);
   }
-  if ((s.comparativo || []).length) {
-    section("Comparativo com a semana anterior");
-    s.comparativo.forEach((p) => writeLines(`•  ${p}`, { indent: 2 }));
-  }
   if ((s.pauta || []).length) {
     section("Pauta");
     s.pauta.forEach((p) => writeLines(`•  ${p}`, { indent: 2 }));
