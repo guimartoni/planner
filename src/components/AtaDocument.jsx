@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Check, Copy, FileDown, Pencil, Send } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, Copy, FileDown, Loader2, Pencil, Send } from "lucide-react";
 import { C } from "../lib/util.js";
 import { blocksToText } from "../lib/data.js";
 import { ataToPdf } from "../pdf.js";
@@ -15,6 +15,15 @@ const Sec = ({ label, children }) => (
 
 export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen }) {
   const [copied, setCopied] = useState(null); // 'plain' | 'whats'
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const printRef = useRef(null);
+
+  const baixarPdf = async (titulo, data) => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try { await ataToPdf({ element: printRef.current, titulo, data }); } catch (e) {}
+    setPdfBusy(false);
+  };
 
   /* ---------- ata de FUP: painel escuro + ações ---------- */
   if (body.blocks) {
@@ -37,15 +46,16 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
     return (
       <div className="max-w-4xl mx-auto px-3 py-4">
         <div className="flex items-center justify-end gap-2 mb-2">
-          <button onClick={() => ataToPdf({ structured: s0, tasks: openT, blocks: body.blocks })}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: C.ink }}>
-            <FileDown size={13} /> PDF
+          <button onClick={() => baixarPdf(s0.titulo, s0.data)} disabled={pdfBusy}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: C.ink, opacity: pdfBusy ? 0.7 : 1 }}>
+            {pdfBusy ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />} PDF
           </button>
           <button onClick={copyTxt} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#E2E5E9", color: "#374151" }}>Copiar</button>
           <a href={"https://wa.me/?text=" + encodeURIComponent(whatsTxt())} target="_blank" rel="noreferrer"
             className="px-3 py-1.5 rounded-lg text-xs font-medium text-white no-underline" style={{ background: "#1FAF57" }}>WhatsApp</a>
           <button onClick={onReopen} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#E2E5E9", color: "#374151" }}>✏️ Reabrir</button>
         </div>
+        <div ref={printRef}>
         <FupPanel blocks={body.blocks} prevBlocks={prevBlocks} showEmpty
           header={{ title: s0.titulo || "FUP semanal", crumb: `FUP ${s0.data || ""}`, badge: "Semana atual" }} />
         {s0.resumo && (
@@ -70,6 +80,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
             </div>
           </div>
         )}
+        </div>
       </div>
     );
   }
@@ -109,9 +120,9 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
           <Pencil size={13} /> Reabrir e editar
         </button>
         <div className="flex-1" />
-        <button onClick={() => ataToPdf({ structured: s, tasks, blocks: null })}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style={{ background: C.ink }}>
-          <FileDown size={14} /> PDF
+        <button onClick={() => baixarPdf(s.titulo, s.data)} disabled={pdfBusy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style={{ background: C.ink, opacity: pdfBusy ? 0.7 : 1 }}>
+          {pdfBusy ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} PDF
         </button>
         <button onClick={() => copy("plain")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-white" style={{ background: C.inkSoft }}>
           {copied === "plain" ? <Check size={14} /> : <Copy size={14} />} {copied === "plain" ? "Copiada!" : "Copiar ata"}
@@ -125,7 +136,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
         </button>
       </div>
 
-      <div className="relative rounded-xl border shadow-sm p-6 md:p-8" style={{ background: C.paper, borderColor: C.line, fontFamily: "Georgia, serif" }}>
+      <div ref={printRef} className="relative rounded-xl border shadow-sm p-6 md:p-8" style={{ background: C.paper, borderColor: C.line, fontFamily: "Georgia, serif" }}>
         <div className="absolute top-5 right-5 px-3 py-1 border-2 rounded text-xs font-bold tracking-widest uppercase rotate-6 select-none"
           style={{ borderColor: C.stamp, color: C.stamp, background: "rgba(30,107,79,.05)" }}>
           Ata concluída
