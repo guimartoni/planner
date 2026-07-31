@@ -12,10 +12,12 @@ export function usePlannerData(prepare) {
   const [saveState, setSaveState] = useState(null); // 'saving' | 'saved' | 'erro'
   const [syncing, setSyncing] = useState(false);
   const [tmbKey, setTmbKeyState] = useState("");
+  const [anthropicKey, setAnthropicKeyState] = useState("");
 
   const metaRef = useRef(null);
   const bodiesRef = useRef({});
   const tmbKeyRef = useRef("");
+  const anthropicKeyRef = useRef("");
   const lastSavedRef = useRef("");
   const saveTimer = useRef(null);
   const savingRef = useRef(false);
@@ -28,6 +30,7 @@ export function usePlannerData(prepare) {
     meta: metaRef.current,
     bodies: bodiesRef.current,
     tmbKey: tmbKeyRef.current,
+    anthropicKey: anthropicKeyRef.current,
   });
 
   const mergeRemote = (remote) => {
@@ -93,6 +96,11 @@ export function usePlannerData(prepare) {
     setTmbKeyState(k);
     scheduleSave();
   }, [scheduleSave]);
+  const saveAnthropicKey = useCallback((k) => {
+    anthropicKeyRef.current = (k || "").trim();
+    setAnthropicKeyState(anthropicKeyRef.current);
+    scheduleSave();
+  }, [scheduleSave]);
 
   /* ---------- carga inicial ---------- */
   useEffect(() => {
@@ -104,13 +112,16 @@ export function usePlannerData(prepare) {
           meta: (raw && raw.meta) || null,
           bodies: (raw && raw.bodies) || {},
           tmbKey: (raw && raw.tmbKey) || "",
+          anthropicKey: (raw && raw.anthropicKey) || "",
         };
         const { data, changed } = prepare(base);
         metaRef.current = data.meta;
         bodiesRef.current = data.bodies || {};
         tmbKeyRef.current = data.tmbKey || "";
+        anthropicKeyRef.current = data.anthropicKey || "";
         setMetaState(data.meta);
         setTmbKeyState(data.tmbKey || "");
+        setAnthropicKeyState(data.anthropicKey || "");
         lastSavedRef.current = raw ? JSON.stringify(raw) : "";
         if (changed || !raw) {
           const p = payload();
@@ -139,6 +150,10 @@ export function usePlannerData(prepare) {
         if (remote.tmbKey && remote.tmbKey !== tmbKeyRef.current) {
           tmbKeyRef.current = remote.tmbKey;
           setTmbKeyState(remote.tmbKey);
+        }
+        if (remote.anthropicKey && remote.anthropicKey !== anthropicKeyRef.current) {
+          anthropicKeyRef.current = remote.anthropicKey;
+          setAnthropicKeyState(remote.anthropicKey);
         }
         lastSavedRef.current = rs;
         scheduleSave(); // regrava o resultado do merge
@@ -181,6 +196,7 @@ export function usePlannerData(prepare) {
     meta: metaRef.current,
     bodies: bodiesRef.current,
     tmbKey: tmbKeyRef.current,
+    anthropicKey: anthropicKeyRef.current,
   }), []);
 
   /* Substitui TODO o conteúdo pelo pacote importado e regrava na nuvem. */
@@ -192,6 +208,7 @@ export function usePlannerData(prepare) {
       meta: p.meta,
       bodies: p.bodies || {},
       tmbKey: p.tmbKey || tmbKeyRef.current || "",
+      anthropicKey: p.anthropicKey || anthropicKeyRef.current || "",
     };
     await writePlannerData(data);
   }, []);
@@ -200,6 +217,7 @@ export function usePlannerData(prepare) {
     cloudPhase, cloudErr, meta, setMeta, metaRef,
     loadBody, saveBody, deleteBodyKey,
     tmbKey, saveTmbKey,
+    anthropicKey, saveAnthropicKey,
     saveState, syncing, syncNow,
     getSnapshot, importData,
   };

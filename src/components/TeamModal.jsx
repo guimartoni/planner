@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { X, Trash2 } from "lucide-react";
 import { C } from "../lib/util.js";
-import { getAnthropicKey, setAnthropicKey } from "../ia.js";
 import Avatar from "./Avatar.jsx";
 
-export default function TeamModal({ users, me, tmbKey, onSaveKey, onExport, onImport, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
+export default function TeamModal({ users, me, tmbKey, onSaveKey, anthropicKey, onSaveAnthropicKey, onExport, onImport, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
   const [cfg, setCfg] = useState(null); // {id, name, area, phone, email}
-  const [aKey, setAKey] = useState(getAnthropicKey());
+  const [aKey, setAKey] = useState(anthropicKey || "");
   const [aKeySaved, setAKeySaved] = useState(false);
   const [tKey, setTKey] = useState(tmbKey || "");
   return (
@@ -85,24 +84,24 @@ export default function TeamModal({ users, me, tmbKey, onSaveKey, onExport, onIm
           </div>
           {tmbKey && <p className="text-xs" style={{ color: C.stamp }}>✓ chave configurada</p>}
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>IA instantânea (opcional)</p>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>IA automática (recomendado)</p>
         <div className="flex flex-col gap-1.5 mb-3 rounded-lg border p-2" style={{ borderColor: C.line, background: "#F5F6F8" }}>
           <p className="text-xs" style={{ color: "#6B7280" }}>
-            Sem chave, o "Gerar ata" usa a <b>fila de IA</b> (custo zero, pronto em alguns minutos).
-            Com uma chave da API Anthropic (console.anthropic.com), a resposta sai em segundos.
-            Custo estimado: <b>menos de R$ 0,50 por ata</b>; recomendamos definir um limite mensal (ex.: US$ 5) no painel da Anthropic.
-            A chave fica só neste navegador.
+            Com uma chave da API Anthropic (<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline" style={{ color: C.stamp }}>console.anthropic.com</a>),
+            atas, resumos e o acervo respondem <b>em segundos, automaticamente, em todos os seus aparelhos</b> — a chave fica sincronizada
+            junto com seus dados no OneDrive. Custo: <b>~R$ 0,30 a 0,50 por ata</b>; defina um limite mensal (ex.: US$ 5) no painel da Anthropic.
+            Sem chave, os pedidos vão para a fila de IA e esperam um processador.
           </p>
           <div className="flex gap-1.5">
-            <input value={aKey} onChange={(e) => setAKey(e.target.value)} placeholder="sk-ant-… (deixe vazio para usar a fila)"
+            <input value={aKey} onChange={(e) => setAKey(e.target.value)} placeholder="sk-ant-…"
               type="password"
               className="flex-1 border rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ borderColor: C.line }} />
-            <button onClick={() => { setAnthropicKey(aKey); setAKeySaved(true); setTimeout(() => setAKeySaved(false), 1500); }}
+            <button onClick={() => { onSaveAnthropicKey(aKey); setAKeySaved(true); setTimeout(() => setAKeySaved(false), 1500); }}
               className="px-3 rounded-lg text-xs font-medium text-white" style={{ background: C.stamp }}>
               {aKeySaved ? "✓" : "Salvar"}
             </button>
           </div>
-          {getAnthropicKey() && <p className="text-xs" style={{ color: C.stamp }}>✓ modo instantâneo ativo neste navegador</p>}
+          {anthropicKey && <p className="text-xs" style={{ color: C.stamp }}>✓ IA automática ativa em todos os aparelhos</p>}
         </div>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Dados</p>
         <div className="flex gap-1.5 mb-3">

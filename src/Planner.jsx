@@ -7,7 +7,7 @@ import {
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS } from "./lib/blocks.js";
-import { TEXT_SCHEMA, buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, pollResponse } from "./ia.js";
+import { TEXT_SCHEMA, buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { fetchCalendarEvents } from "./agenda.js";
 import { readJsonFile } from "./onedrive.js";
 import { usePlannerData } from "./store.js";
@@ -101,7 +101,15 @@ export default function Planner() {
     idsRef.current = r.ids;
     return r;
   });
-  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey, getSnapshot, importData } = store;
+  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey, anthropicKey, saveAnthropicKey, getSnapshot, importData } = store;
+
+  /* chave da IA sincronizada: espelha no módulo de IA e migra a legada do navegador */
+  useEffect(() => {
+    setRuntimeAnthropicKey(anthropicKey);
+    if (cloudPhase === "pronto" && !anthropicKey && getLegacyLocalKey()) {
+      saveAnthropicKey(getLegacyLocalKey());
+    }
+  }, [anthropicKey, cloudPhase]); // eslint-disable-line
 
   const [me, setMe] = useState(null);
   const [phase, setPhase] = useState("boot"); // boot | identify | ready
@@ -1393,6 +1401,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         <TeamModal
           users={meta.users} me={me}
           tmbKey={tmbKey} onSaveKey={saveTmbKey}
+          anthropicKey={anthropicKey} onSaveAnthropicKey={saveAnthropicKey}
           onExport={() => { setShowTeam(false); setXfer({ mode: "export", text: JSON.stringify(getSnapshot()) }); }}
           onImport={() => { setShowTeam(false); setXfer({ mode: "import", text: "" }); }}
           onClose={() => setShowTeam(false)}

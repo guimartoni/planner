@@ -16,11 +16,12 @@ import { readJsonFile, writeJsonFile, deleteFile, ensureFolder } from "./onedriv
 const FILA = "/planner-ia-fila";
 const KEY_STORAGE = "planner-anthropic-key";
 
-export const getAnthropicKey = () => localStorage.getItem(KEY_STORAGE) || "";
-export const setAnthropicKey = (k) => {
-  if (k && k.trim()) localStorage.setItem(KEY_STORAGE, k.trim());
-  else localStorage.removeItem(KEY_STORAGE);
-};
+/* A chave agora mora nos dados sincronizados (planner-dados.json) e vale
+   para todos os aparelhos; o localStorage fica como legado/fallback. */
+let runtimeKey = "";
+export const setRuntimeAnthropicKey = (k) => { runtimeKey = (k || "").trim(); };
+export const getAnthropicKey = () => runtimeKey || localStorage.getItem(KEY_STORAGE) || "";
+export const getLegacyLocalKey = () => localStorage.getItem(KEY_STORAGE) || "";
 
 /* ---------- montagem do prompt da ata ---------- */
 export function buildAtaPrompt({ noteMeta, body, users, prevBlocks }) {
