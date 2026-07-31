@@ -50,6 +50,15 @@ Gere a ata padrão. Responda SOMENTE com JSON válido, sem markdown, sem texto a
 Regras: preserve as tarefas marcadas com @ e as datas marcadas com 📅; linhas com asterisco (*) são tarefas importantes (importante:true, e remova o asterisco do texto); demais ações têm importante:false; atribua responsavel apenas se corresponder exatamente a um usuário cadastrado; se não houver comparativo, use lista vazia.`;
 }
 
+/* Respostas de texto livre (resumo semanal, pergunte ao acervo) também
+   viajam como JSON estrito para a fila funcionar de forma uniforme. */
+export const TEXT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["texto"],
+  properties: { texto: { type: "string" } },
+};
+
 const ATA_SCHEMA = {
   type: "object",
   additionalProperties: false,

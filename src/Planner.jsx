@@ -1,22 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, CheckSquare, ChevronRight, FileText, FolderInput, Loader2,
-  Menu, Pencil, Plus, RefreshCw, Trash2, X,
+  BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, FileText,
+  FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Search as SearchIcon,
+  Send, Trash2, X,
 } from "lucide-react";
-import { C, USER_COLORS, dateKeyBR, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
+import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS } from "./lib/blocks.js";
-import { buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, pollResponse } from "./ia.js";
+import { TEXT_SCHEMA, buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, pollResponse } from "./ia.js";
+import { fetchCalendarEvents } from "./agenda.js";
 import { usePlannerData } from "./store.js";
 import AtaDocument from "./components/AtaDocument.jsx";
 import Avatar from "./components/Avatar.jsx";
 import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
+import MeetingsView from "./components/MeetingsView.jsx";
+import ReportView from "./components/ReportView.jsx";
+import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
 import TeamModal from "./components/TeamModal.jsx";
 import TrashView from "./components/TrashView.jsx";
 
-const APP_BUILD = "Sessão 3 · templates FUP + atas via fila de IA";
+const APP_BUILD = "Sessão 4 · Meu dia + agenda + WhatsApp + acervo";
 const ME_KEY = "planner-me-v1";
 
 /* Normaliza os dados na carga: semente inicial, caderno Diário como
@@ -95,7 +100,7 @@ export default function Planner() {
     idsRef.current = r.ids;
     return r;
   });
-  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow } = store;
+  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey } = store;
 
   const [me, setMe] = useState(null);
   const [phase, setPhase] = useState("boot"); // boot | identify | ready
@@ -119,9 +124,20 @@ export default function Planner() {
   const [iaErr, setIaErr] = useState({}); // noteId -> mensagem
   const [directBusy, setDirectBusy] = useState(false);
   const noteIdRef = useRef(null);
+  const [agenda, setAgenda] = useState({ fetchedAt: 0, events: [] });
+  const [agendaLoading, setAgendaLoading] = useState(false);
+  const [agendaErr, setAgendaErr] = useState(null);
+  const agendaRef = useRef({ fetchedAt: 0, events: [] });
+  const agendaLoadingRef = useRef(false);
+  const [sendList, setSendList] = useState(null); // [{id,name,url,done}] | null
+  const [pendingAuto, setPendingAuto] = useState(false);
+  const [weeklyOpen, setWeeklyOpen] = useState(false);
+  const [weeklyBusy, setWeeklyBusy] = useState(false);
+  const [acervoBusy, setAcervoBusy] = useState(false);
 
   useEffect(() => { setDiariosOpen(false); }, [secId]);
   useEffect(() => { noteIdRef.current = noteId; }, [noteId]);
+  useEffect(() => { agendaRef.current = agenda; }, [agenda]);
 
   /* ---------- entrada: identificar usuário e abrir o Diário de hoje ---------- */
   useEffect(() => {
@@ -599,12 +615,30 @@ export default function Planner() {
       for (const item of q) {
         if (Date.now() - (item.criadoEm || 0) > 30 * 60 * 1000) {
           setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
-          setIaErr((e) => ({ ...e, [item.noteId]: "A fila da IA não respondeu em 30 minutos — confira se a tarefa do Cowork está ativa e gere a ata de novo." }));
+          const aviso = "A fila da IA não respondeu em 30 minutos — confira se a tarefa do Cowork está ativa e tente de novo.";
+          if (item.tipo === "resumo") setMeta((m) => ({ ...m, weeklyResumo: { text: aviso, em: Date.now() } }));
+          else if (item.tipo === "acervo") setMeta((m) => ({ ...m, acervoResposta: { pergunta: item.pergunta || "", texto: aviso, em: Date.now() } }));
+          else setIaErr((e) => ({ ...e, [item.noteId]: aviso }));
           continue;
         }
         try {
           const parsed = await pollResponse(item.id);
-          if (parsed) applyAta(item.noteId, parsed);
+          if (!parsed) continue;
+          if (item.tipo === "resumo") {
+            setMeta((m) => ({
+              ...m,
+              iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id),
+              weeklyResumo: { text: parsed.texto || "", em: Date.now() },
+            }));
+          } else if (item.tipo === "acervo") {
+            setMeta((m) => ({
+              ...m,
+              iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id),
+              acervoResposta: { pergunta: item.pergunta || "", texto: parsed.texto || "", em: Date.now() },
+            }));
+          } else {
+            applyAta(item.noteId, parsed);
+          }
         } catch (e) { /* tenta no próximo ciclo */ }
       }
     }, 10000);
@@ -613,11 +647,213 @@ export default function Planner() {
 
   const iaState = directBusy && noteId
     ? { status: "gerando" }
-    : (meta?.iaQueue || []).some((q) => q.noteId === noteId)
+    : (meta?.iaQueue || []).some((q) => q.noteId === noteId && q.tipo === "ata")
       ? { status: "fila" }
       : iaErr[noteId]
         ? { status: "erro", msg: iaErr[noteId] }
         : null;
+
+  /* ---------- agenda do Outlook (Microsoft Graph) ---------- */
+  const fetchAgenda = async (force) => {
+    if (agendaLoadingRef.current) return;
+    const cur = agendaRef.current;
+    if (!force && Date.now() - cur.fetchedAt < 15 * 60 * 1000 && cur.events.length) return;
+    agendaLoadingRef.current = true;
+    setAgendaLoading(true); setAgendaErr(null);
+    try {
+      const teamEmails = (metaRef.current?.users || []).map((u) => (u.email || "").toLowerCase()).filter(Boolean);
+      const events = await fetchCalendarEvents(teamEmails);
+      const next = { fetchedAt: Date.now(), events };
+      setAgenda(next);
+      try { localStorage.setItem("planner-agenda-cache", JSON.stringify(next)); } catch (e) {}
+    } catch (e) {
+      setAgendaErr(`Não consegui acessar sua agenda (${(e && e.message) || "erro desconhecido"}). Toque em atualizar para tentar de novo.`);
+    }
+    agendaLoadingRef.current = false;
+    setAgendaLoading(false);
+  };
+
+  useEffect(() => {
+    if (phase !== "ready") return;
+    try {
+      const cache = JSON.parse(localStorage.getItem("planner-agenda-cache") || "null");
+      if (cache && cache.events) setAgenda(cache);
+    } catch (e) {}
+    fetchAgenda(false);
+  }, [phase]); // eslint-disable-line
+
+  /* ---------- relatório diário / WhatsApp ---------- */
+  const reportForUser = (u, tasksAll, withMeetings) => {
+    const tKey = dateKeyBR(todayBR());
+    const due = (t) => !t.done && (!t.date || dateKeyBR(t.date) <= tKey);
+    const fmt = (t) => `• ${t.important ? "⭐ " : ""}${t.text} ${t.date ? `(${t.date})` : "(sem prazo)"}${t.date && dateKeyBR(t.date) < tKey ? " ⚠️" : ""}`;
+    const list = tasksAll.filter((t) => t.userId === u.id && due(t))
+      .sort((a, b) => (dateKeyBR(a.date) || "99999999").localeCompare(dateKeyBR(b.date) || "99999999"));
+    let txt = `*📋 BOM DIA, ${u.name.split(" ")[0]}! — ${todayBR()}*\n`;
+    const localDay = isoToday();
+    const events = agendaRef.current.events || [];
+    if (withMeetings) {
+      const ms = events.filter((e) => e.inicio.slice(0, 10) === localDay).sort((a, b) => a.inicio.localeCompare(b.inicio));
+      txt += `\n*🗓 Reuniões (${ms.length})*\n` + (ms.length ? ms.map((e) => `• ${e.inicio.slice(11, 16)}–${e.fim.slice(11, 16)} ${e.titulo}`).join("\n") : "• sem reuniões") + "\n";
+    } else if (u.email) {
+      const mine2 = events.filter((e) =>
+        e.inicio.slice(0, 10) === localDay && (e.eq || []).includes(u.email.toLowerCase())
+      ).sort((a, b) => a.inicio.localeCompare(b.inicio));
+      if (mine2.length) {
+        txt += `\n*🤝 Reuniões hoje com ${me?.name ? me.name.split(" ")[0] : "o gestor"} (${mine2.length})*\n` +
+          mine2.map((e) => `• ${e.inicio.slice(11, 16)}–${e.fim.slice(11, 16)} ${e.titulo}`).join("\n") + "\n";
+      }
+    }
+    txt += `\n*✅ Suas pendências (${list.length})*\n`;
+    txt += list.length ? list.map(fmt).join("\n") : "• você está em dia 👏";
+    if (withMeetings) {
+      const others = tasksAll.filter((t) => t.userId && t.userId !== u.id && due(t))
+        .sort((a, b) => (dateKeyBR(a.date) || "99999999").localeCompare(dateKeyBR(b.date) || "99999999"));
+      txt += `\n\n*👥 Pendências da equipe (${others.length})*\n`;
+      if (others.length) {
+        const by = {};
+        others.forEach((t) => { (by[t.userName] = by[t.userName] || []).push(t); });
+        txt += Object.keys(by).map((name) => `_${name}_\n` + by[name].map(fmt).join("\n")).join("\n");
+      } else {
+        txt += "• equipe em dia";
+      }
+    }
+    txt += `\n\n_Planner - Gui - Finamob_`;
+    return txt;
+  };
+
+  const waReady = (u) => !!u.phone && !!tmbKey;
+
+  const sendReportToTeam = () => {
+    scanAllTasks();
+    const m = metaRef.current;
+    const tasksAll = m.tasks || [];
+    const targets = m.users.filter((u) => waReady(u));
+    if (!targets.length) return 0;
+    const list = targets.map((u) => {
+      const txt = reportForUser(u, tasksAll, u.id === me?.id).slice(0, 1500);
+      return {
+        id: u.id, name: u.name, done: false,
+        url: `https://api.textmebot.com/send.php?recipient=%2B${encodeURIComponent(u.phone)}&apikey=${encodeURIComponent(tmbKey)}&text=${encodeURIComponent(txt)}`,
+      };
+    });
+    setSendList(list);
+    setMeta((mm) => ({ ...mm, autoSend: isoToday() }));
+    return list.length;
+  };
+
+  const markSent = (id) => setSendList((l) => l && l.map((x) => (x.id === id ? { ...x, done: true } : x)));
+
+  useEffect(() => {
+    if (phase !== "ready" || !meta) { setPendingAuto(false); return; }
+    if (new Date().getHours() < 7) { setPendingAuto(false); return; }
+    if ((meta.autoSend || "") === isoToday()) { setPendingAuto(false); return; }
+    setPendingAuto((meta.users || []).length > 0);
+  }, [phase, meta]); // eslint-disable-line
+
+  /* ---------- resumo semanal (IA) ---------- */
+  const buildWeeklyPrompt = () => {
+    const m = metaRef.current;
+    const cut = new Date(); cut.setDate(cut.getDate() - 7);
+    const cutKey = dateKeyBR(`${String(cut.getDate()).padStart(2, "0")}/${String(cut.getMonth() + 1).padStart(2, "0")}/${cut.getFullYear()}`);
+    const pages = [];
+    for (const nb of m.notebooks) for (const s of nb.sections) for (const n of s.notes) {
+      if (dateKeyBR(n.createdAt) >= cutKey) {
+        const b = loadBody(n.id);
+        pages.push(`[${nb.name} · ${s.name}] ${n.title}: ${((b && b.structured && b.structured.resumo) || bodyText(b)).slice(0, 600)}`);
+      }
+    }
+    const done = (m.tasks || []).filter((t) => t.done).map((t) => `${t.text} (${t.userName || "?"})`);
+    const open = (m.tasks || []).filter((t) => !t.done).map((t) => `${t.text} (${t.userName || "?"}, ${t.date || "sem prazo"})`);
+    return `Você é o assistente do Planner - Gui - Finamob. Hoje é ${todayBR()}. Monte um RESUMO SEMANAL executivo em português, formatado para WhatsApp (use *negrito* e •), com: principais assuntos e decisões da semana, tarefas concluídas, tarefas em aberto/atrasadas por pessoa, e 2-3 recomendações de foco para a próxima semana. Máximo ~1500 caracteres.
+
+PÁGINAS DA SEMANA:
+${pages.join("\n").slice(0, 12000) || "(nenhuma)"}
+
+CONCLUÍDAS: ${done.join("; ") || "(nenhuma)"}
+EM ABERTO: ${open.join("; ") || "(nenhuma)"}
+
+Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"o resumo aqui"}`;
+  };
+
+  const weeklySummary = async () => {
+    setWeeklyOpen(true);
+    if (weeklyBusy || (metaRef.current?.iaQueue || []).some((q) => q.tipo === "resumo")) return;
+    setMeta((m) => { const { weeklyResumo: _drop, ...rest } = m; return rest; });
+    const prompt = buildWeeklyPrompt();
+    if (getAnthropicKey()) {
+      setWeeklyBusy(true);
+      try {
+        const parsed = await callDirect(prompt, TEXT_SCHEMA);
+        setMeta((m) => ({ ...m, weeklyResumo: { text: parsed.texto || "", em: Date.now() } }));
+      } catch (e) {
+        setMeta((m) => ({ ...m, weeklyResumo: { text: "Erro ao gerar o resumo — tente novamente.", em: Date.now() } }));
+      }
+      setWeeklyBusy(false);
+    } else {
+      try {
+        const id = await enqueueRequest({ tipo: "resumo", noteId: "resumo-semanal", prompt });
+        setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id, noteId: "resumo-semanal", tipo: "resumo", criadoEm: Date.now() }] }));
+      } catch (e) {
+        setMeta((m) => ({ ...m, weeklyResumo: { text: "Não consegui enviar o pedido para a fila — verifique a internet.", em: Date.now() } }));
+      }
+    }
+  };
+
+  /* ---------- pergunte ao acervo (IA) ---------- */
+  const buildAcervoPrompt = (query) => {
+    const m = metaRef.current;
+    const corpus = [];
+    for (const nb of m.notebooks) for (const s of nb.sections) for (const n of s.notes) {
+      const b = loadBody(n.id);
+      const content = bodyText(b) + " " + ((b && b.structured && JSON.stringify(b.structured)) || "");
+      if (content.trim().length > 5) corpus.push(`### [${nb.name} · ${s.name}] ${n.title} (${n.createdAt})\n${content.slice(0, 1500)}`);
+      if (corpus.join("").length > 40000) break;
+    }
+    return `Você é a memória institucional do Planner - Gui - Finamob. Responda à pergunta abaixo APENAS com base nas páginas fornecidas, em português, de forma direta. Cite entre colchetes o título das páginas que fundamentam a resposta. Se não houver informação, diga que não encontrou.
+
+PERGUNTA: ${query}
+
+PÁGINAS:
+${corpus.join("\n\n") || "(vazio)"}
+
+Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"a resposta aqui"}`;
+  };
+
+  const askAcervo = async (query) => {
+    if (acervoBusy || (metaRef.current?.iaQueue || []).some((q) => q.tipo === "acervo")) return;
+    const prompt = buildAcervoPrompt(query);
+    if (getAnthropicKey()) {
+      setAcervoBusy(true);
+      try {
+        const parsed = await callDirect(prompt, TEXT_SCHEMA);
+        setMeta((m) => ({ ...m, acervoResposta: { pergunta: query, texto: parsed.texto || "", em: Date.now() } }));
+      } catch (e) {
+        setMeta((m) => ({ ...m, acervoResposta: { pergunta: query, texto: "Erro ao consultar a IA — tente novamente.", em: Date.now() } }));
+      }
+      setAcervoBusy(false);
+    } else {
+      try {
+        const id = await enqueueRequest({ tipo: "acervo", noteId: "acervo", prompt });
+        setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id, noteId: "acervo", tipo: "acervo", pergunta: query, criadoEm: Date.now() }] }));
+      } catch (e) {
+        setMeta((m) => ({ ...m, acervoResposta: { pergunta: query, texto: "Não consegui enviar a pergunta para a fila — verifique a internet.", em: Date.now() } }));
+      }
+    }
+  };
+
+  /* ---------- atalho Ctrl+K ---------- */
+  useEffect(() => {
+    const h = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setView("search");
+        setShowSide(false);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []); // eslint-disable-line
 
   /* ---------- tarefas recorrentes ---------- */
   const materializeRecurring = () => {
@@ -719,6 +955,28 @@ export default function Planner() {
           <RefreshCw size={15} className={syncing ? "animate-spin" : ""} />
         </button>
         <button onClick={() => {
+          const opening = view !== "meetings";
+          setView(opening ? "meetings" : "editor");
+          if (opening) fetchAgenda(false);
+        }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
+          style={{ background: view === "meetings" ? C.stamp : C.inkSoft, color: "#fff" }}>
+          <CalendarDays size={15} /> <span className="hidden md:inline">Reuniões</span>
+        </button>
+        <button onClick={() => {
+          const opening = view !== "report";
+          setView(opening ? "report" : "editor");
+          if (opening) { fetchAgenda(false); scanAllTasks(); }
+        }}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
+          style={{ background: view === "report" ? C.stamp : C.inkSoft, color: "#fff" }}>
+          <ClipboardList size={15} /> <span className="hidden md:inline">Meu dia</span>
+        </button>
+        <button onClick={() => { setView(view === "search" ? "editor" : "search"); setShowSide(false); }}
+          className="p-2 rounded-lg text-white" style={{ background: view === "search" ? C.stamp : C.inkSoft }} title="Busca e IA (Ctrl+K)">
+          <SearchIcon size={15} />
+        </button>
+        <button onClick={() => {
           const opening = view !== "tasks";
           setView(opening ? "tasks" : "editor");
           if (opening) scanAllTasks();
@@ -738,6 +996,21 @@ export default function Planner() {
           <Avatar user={me} />
         </button>
       </header>
+
+      {pendingAuto && (() => {
+        const meUser = meta.users.find((x) => x.id === me?.id) || { id: me?.id, name: me?.name || "Gestor" };
+        const txt = reportForUser(meUser, meta.tasks || [], true).slice(0, 1800);
+        return (
+          <a
+            href={"https://wa.me/?text=" + encodeURIComponent(txt)}
+            target="_blank" rel="noreferrer"
+            onClick={() => { setPendingAuto(false); setMeta((m) => ({ ...m, autoSend: isoToday() })); }}
+            className="w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-2 shrink-0 no-underline"
+            style={{ background: "#FBEEDB", color: "#854F0B" }}>
+            <Send size={14} /> Relatório diário pronto — toque para abrir o WhatsApp e enviar ao grupo da equipe
+          </a>
+        );
+      })()}
 
       <div className="flex flex-1 min-h-0 relative">
         {/* Sidebar */}
@@ -854,6 +1127,27 @@ export default function Planner() {
         <main className="flex-1 min-w-0 overflow-y-auto">
           {view === "trash" ? (
             <TrashView meta={meta} onRestore={restoreNote} onPurge={purgeNote} onEmpty={emptyTrash} />
+          ) : view === "search" ? (
+            <SearchView meta={meta} loadBody={loadBody} onGo={goToNote}
+              acervo={{
+                busy: acervoBusy,
+                fila: (meta.iaQueue || []).some((x) => x.tipo === "acervo"),
+                resposta: meta.acervoResposta || null,
+              }}
+              onAsk={askAcervo} />
+          ) : view === "meetings" ? (
+            <MeetingsView agenda={agenda} loading={agendaLoading} err={agendaErr} onRefresh={() => fetchAgenda(true)} />
+          ) : view === "report" ? (
+            <ReportView agenda={agenda} meta={meta} me={me} loading={agendaLoading || scanning}
+              onToggle={toggleTask} onGo={goToNote} onRefresh={() => { fetchAgenda(true); scanAllTasks(); }}
+              onSendAll={sendReportToTeam} sendList={sendList} onMarkSent={markSent} onCloseSend={() => setSendList(null)}
+              tmbKey={tmbKey} onWeekly={weeklySummary}
+              weekly={weeklyOpen ? {
+                loading: weeklyBusy,
+                fila: (meta.iaQueue || []).some((x) => x.tipo === "resumo"),
+                text: meta.weeklyResumo?.text || null,
+              } : null}
+              onCloseWeekly={() => setWeeklyOpen(false)} />
           ) : view === "tasks" ? (
             <TasksView meta={meta} me={me} onToggle={toggleTask} onGo={goToNote} scanning={scanning}
               onAddRec={addRecurring} onRemoveRec={removeRecurring} onEdit={editTask} onPlusDays={plusDaysBR} />
@@ -969,6 +1263,7 @@ export default function Planner() {
       {showTeam && (
         <TeamModal
           users={meta.users} me={me}
+          tmbKey={tmbKey} onSaveKey={saveTmbKey}
           onClose={() => setShowTeam(false)}
           onAdd={(name, area) => addUser(name, area)}
           onUpdate={updateUser}

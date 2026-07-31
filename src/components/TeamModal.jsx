@@ -4,12 +4,13 @@ import { C } from "../lib/util.js";
 import { getAnthropicKey, setAnthropicKey } from "../ia.js";
 import Avatar from "./Avatar.jsx";
 
-export default function TeamModal({ users, me, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
+export default function TeamModal({ users, me, tmbKey, onSaveKey, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
   const [cfg, setCfg] = useState(null); // {id, name, area, phone, email}
   const [aKey, setAKey] = useState(getAnthropicKey());
   const [aKeySaved, setAKeySaved] = useState(false);
+  const [tKey, setTKey] = useState(tmbKey || "");
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.5)" }}>
       <div className="w-full max-w-sm rounded-2xl p-5 max-h-full overflow-y-auto" style={{ background: "#fff" }}>
@@ -66,6 +67,23 @@ export default function TeamModal({ users, me, onClose, onAdd, onUpdate, onRemov
             </div>
           ))}
           {users.length === 0 && <p className="text-xs" style={{ color: "#9CA3AF" }}>Ninguém cadastrado ainda.</p>}
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Envio do relatório diário (TextMeBot)</p>
+        <div className="flex flex-col gap-1.5 mb-3 rounded-lg border p-2" style={{ borderColor: C.line, background: "#F5F6F8" }}>
+          <p className="text-xs" style={{ color: "#6B7280" }}>
+            O relatório é disparado do WhatsApp da empresa para todos com telefone cadastrado. Obtenha a chave conectando o número em{" "}
+            <a href="https://textmebot.com/" target="_blank" rel="noreferrer" className="underline" style={{ color: C.stamp }}>textmebot.com</a>
+            {" "}(use um número secundário).
+          </p>
+          <div className="flex gap-1.5">
+            <input value={tKey} onChange={(e) => setTKey(e.target.value)} placeholder="Chave (apikey) do TextMeBot"
+              className="flex-1 border rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ borderColor: C.line }} />
+            <button onClick={() => onSaveKey(tKey.trim())}
+              className="px-3 rounded-lg text-xs font-medium text-white" style={{ background: C.stamp }}>
+              Salvar
+            </button>
+          </div>
+          {tmbKey && <p className="text-xs" style={{ color: C.stamp }}>✓ chave configurada</p>}
         </div>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>IA instantânea (opcional)</p>
         <div className="flex flex-col gap-1.5 mb-3 rounded-lg border p-2" style={{ borderColor: C.line, background: "#F5F6F8" }}>
