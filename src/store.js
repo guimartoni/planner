@@ -174,10 +174,33 @@ export function usePlannerData(prepare) {
     };
   }, []); // eslint-disable-line
 
+  /* ---------- exportar / importar ---------- */
+  const getSnapshot = useCallback(() => ({
+    app: "Planner - Gui - Finamob",
+    exportadoEm: new Date().toISOString(),
+    meta: metaRef.current,
+    bodies: bodiesRef.current,
+    tmbKey: tmbKeyRef.current,
+  }), []);
+
+  /* Substitui TODO o conteúdo pelo pacote importado e regrava na nuvem. */
+  const importData = useCallback(async (p) => {
+    if (!p || !p.meta || !p.meta.notebooks) throw new Error("formato inválido");
+    const data = {
+      app: "Planner - Gui - Finamob",
+      atualizadoEm: new Date().toISOString(),
+      meta: p.meta,
+      bodies: p.bodies || {},
+      tmbKey: p.tmbKey || tmbKeyRef.current || "",
+    };
+    await writePlannerData(data);
+  }, []);
+
   return {
     cloudPhase, cloudErr, meta, setMeta, metaRef,
     loadBody, saveBody, deleteBodyKey,
     tmbKey, saveTmbKey,
     saveState, syncing, syncNow,
+    getSnapshot, importData,
   };
 }

@@ -4,7 +4,7 @@ import { C } from "../lib/util.js";
 import { getAnthropicKey, setAnthropicKey } from "../ia.js";
 import Avatar from "./Avatar.jsx";
 
-export default function TeamModal({ users, me, tmbKey, onSaveKey, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
+export default function TeamModal({ users, me, tmbKey, onSaveKey, onExport, onImport, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
   const [cfg, setCfg] = useState(null); // {id, name, area, phone, email}
@@ -103,6 +103,15 @@ export default function TeamModal({ users, me, tmbKey, onSaveKey, onClose, onAdd
             </button>
           </div>
           {getAnthropicKey() && <p className="text-xs" style={{ color: C.stamp }}>✓ modo instantâneo ativo neste navegador</p>}
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Dados</p>
+        <div className="flex gap-1.5 mb-3">
+          <button onClick={onExport} className="flex-1 rounded-lg py-1.5 text-xs font-medium border" style={{ borderColor: C.line, color: "#374151", background: "#fff" }}>
+            ⬇ Exportar dados
+          </button>
+          <button onClick={onImport} className="flex-1 rounded-lg py-1.5 text-xs font-medium border" style={{ borderColor: C.line, color: "#374151", background: "#fff" }}>
+            ⬆ Importar dados
+          </button>
         </div>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Adicionar pessoa</p>
         <div className="flex flex-col gap-2 mb-3">

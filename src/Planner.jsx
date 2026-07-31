@@ -9,6 +9,7 @@ import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS } from "./lib/blocks.js";
 import { TEXT_SCHEMA, buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, pollResponse } from "./ia.js";
 import { fetchCalendarEvents } from "./agenda.js";
+import { readJsonFile } from "./onedrive.js";
 import { usePlannerData } from "./store.js";
 import AtaDocument from "./components/AtaDocument.jsx";
 import Avatar from "./components/Avatar.jsx";
@@ -21,7 +22,7 @@ import TasksView from "./components/TasksView.jsx";
 import TeamModal from "./components/TeamModal.jsx";
 import TrashView from "./components/TrashView.jsx";
 
-const APP_BUILD = "Sessão 4 · Meu dia + agenda + WhatsApp + acervo";
+const APP_BUILD = "Sessão 5 · app completo — instalável, com migração";
 const ME_KEY = "planner-me-v1";
 
 /* Normaliza os dados na carga: semente inicial, caderno Diário como
@@ -100,7 +101,7 @@ export default function Planner() {
     idsRef.current = r.ids;
     return r;
   });
-  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey } = store;
+  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey, getSnapshot, importData } = store;
 
   const [me, setMe] = useState(null);
   const [phase, setPhase] = useState("boot"); // boot | identify | ready
@@ -134,6 +135,10 @@ export default function Planner() {
   const [weeklyOpen, setWeeklyOpen] = useState(false);
   const [weeklyBusy, setWeeklyBusy] = useState(false);
   const [acervoBusy, setAcervoBusy] = useState(false);
+  const [backup, setBackup] = useState(null); // backup do OneDrive detectado
+  const [importing, setImporting] = useState(false);
+  const [importErr, setImportErr] = useState(null);
+  const [xfer, setXfer] = useState(null); // {mode:'export'|'import', text, err?}
 
   useEffect(() => { setDiariosOpen(false); }, [secId]);
   useEffect(() => { noteIdRef.current = noteId; }, [noteId]);
@@ -842,6 +847,54 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
     }
   };
 
+  /* ---------- migração: detectar backup do app antigo no OneDrive ---------- */
+  useEffect(() => {
+    if (cloudPhase !== "pronto" || phase !== "identify") return;
+    if ((metaRef.current?.users || []).length > 0) return; // já tem dados de verdade
+    if (localStorage.getItem("planner-backup-dismissed")) return;
+    (async () => {
+      try {
+        const b = await readJsonFile("/planner-backup-completo.json");
+        if (b && b.meta && b.meta.notebooks) setBackup(b);
+      } catch (e) { /* sem backup, segue normal */ }
+    })();
+  }, [cloudPhase, phase]); // eslint-disable-line
+
+  const importBackup = async () => {
+    if (!backup || importing) return;
+    setImporting(true); setImportErr(null);
+    try {
+      await importData({ meta: backup.meta, bodies: backup.bodies || {}, tmbKey: backup.tmbKey || "" });
+      window.location.reload();
+    } catch (e) {
+      setImportErr(`Não consegui importar (${e.message || "erro"}). Tente de novo.`);
+      setImporting(false);
+    }
+  };
+
+  /* ---------- exportar / importar manual ---------- */
+  const doImportText = async (text) => {
+    try {
+      const p = JSON.parse(text);
+      await importData(p);
+      window.location.reload();
+    } catch (e) {
+      setXfer((x) => ({ ...x, err: "JSON inválido ou erro ao gravar — copie o texto completo da exportação e cole aqui." }));
+    }
+  };
+
+  const restoreFromCloudBackup = async () => {
+    setXfer((x) => ({ ...x, loading: true, err: null }));
+    try {
+      const b = await readJsonFile("/planner-backup-completo.json");
+      if (!b || !b.meta) throw new Error("backup não encontrado");
+      await importData({ meta: b.meta, bodies: b.bodies || {}, tmbKey: b.tmbKey || "" });
+      window.location.reload();
+    } catch (e) {
+      setXfer((x) => ({ ...x, loading: false, err: "Não achei o planner-backup-completo.json no seu OneDrive — cole o pacote manualmente." }));
+    }
+  };
+
   /* ---------- atalho Ctrl+K ---------- */
   useEffect(() => {
     const h = (e) => {
@@ -918,18 +971,43 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
 
   if (phase === "identify") {
     return (
-      <IdentifyScreen
-        users={meta.users}
-        onPick={(u) => {
-          localStorage.setItem(ME_KEY, u.id);
-          setMe(u); setPhase("ready");
-        }}
-        onCreate={(name, area) => {
-          const u = addUser(name, area);
-          localStorage.setItem(ME_KEY, u.id);
-          setMe(u); setPhase("ready");
-        }}
-      />
+      <>
+        <IdentifyScreen
+          users={meta.users}
+          onPick={(u) => {
+            localStorage.setItem(ME_KEY, u.id);
+            setMe(u); setPhase("ready");
+          }}
+          onCreate={(name, area) => {
+            const u = addUser(name, area);
+            localStorage.setItem(ME_KEY, u.id);
+            setMe(u); setPhase("ready");
+          }}
+        />
+        {backup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.75)" }}>
+            <div className="w-full max-w-sm rounded-2xl p-6 text-center" style={{ background: "#fff" }}>
+              <p className="text-3xl mb-2">📦</p>
+              <p className="font-semibold mb-1" style={{ color: "#1F2937" }}>Achei seus dados do app antigo!</p>
+              <p className="text-sm mb-4" style={{ color: "#6B7280" }}>
+                O backup <b>planner-backup-completo.json</b> está no seu OneDrive
+                {backup.backupEm ? ` (de ${new Date(backup.backupEm).toLocaleDateString("pt-BR")})` : ""}.
+                Quer trazer tudo para cá — equipe, cadernos, páginas, FUPs e tarefas?
+              </p>
+              {importErr && <p className="text-xs mb-3" style={{ color: C.danger }}>{importErr}</p>}
+              <button onClick={importBackup} disabled={importing}
+                className="w-full rounded-lg py-2.5 text-sm font-semibold text-white mb-2 flex items-center justify-center gap-2"
+                style={{ background: C.stamp, opacity: importing ? 0.7 : 1 }}>
+                {importing ? <><Loader2 size={15} className="animate-spin" /> Importando…</> : "Importar tudo (1 clique)"}
+              </button>
+              <button onClick={() => { localStorage.setItem("planner-backup-dismissed", "1"); setBackup(null); }}
+                className="text-xs underline" style={{ color: "#9CA3AF" }}>
+                começar do zero (não perguntar de novo)
+              </button>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -1196,6 +1274,57 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         </main>
       </div>
 
+      {xfer && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.55)" }} onClick={() => setXfer(null)}>
+          <div className="w-full max-w-lg rounded-2xl p-5 max-h-full overflow-y-auto" style={{ background: "#fff" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-semibold" style={{ color: "#1F2937" }}>{xfer.mode === "export" ? "Exportar dados" : "Importar dados"}</h2>
+              <button onClick={() => setXfer(null)}><X size={18} /></button>
+            </div>
+            {xfer.mode === "export" ? (
+              <>
+                <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
+                  Copie o pacote abaixo e guarde ou cole em "Importar dados" em outra instância. Tudo vai junto: cadernos, páginas, atas, tarefas, equipe, modelos e chave.
+                </p>
+                <textarea readOnly value={xfer.text} onFocus={(e) => e.target.select()}
+                  className="w-full h-32 border rounded-lg p-2 text-xs outline-none mb-2" style={{ borderColor: C.line, fontFamily: "monospace" }} />
+                <button
+                  onClick={() => {
+                    const ta = document.createElement("textarea"); ta.value = xfer.text;
+                    document.body.appendChild(ta); ta.select();
+                    try { document.execCommand("copy"); } catch (e) {}
+                    document.body.removeChild(ta);
+                  }}
+                  className="w-full rounded-lg py-2 text-sm font-medium text-white" style={{ background: C.stamp }}>
+                  Copiar pacote
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
+                  <b>Atenção:</b> os dados atuais serão substituídos pelos importados. O backup diário
+                  "planner-backup-completo.json" do app antigo usa este mesmo formato.
+                </p>
+                <button onClick={restoreFromCloudBackup} disabled={xfer.loading}
+                  className="w-full rounded-lg py-2 text-sm font-medium text-white mb-2 flex items-center justify-center gap-2"
+                  style={{ background: "#1F5FA8", opacity: xfer.loading ? 0.7 : 1 }}>
+                  {xfer.loading ? <><Loader2 size={14} className="animate-spin" /> Lendo o backup no OneDrive…</> : "🔄 Restaurar do backup OneDrive (app antigo)"}
+                </button>
+                <p className="text-center text-xs mb-2" style={{ color: "#9CA3AF" }}>— ou cole o pacote manualmente —</p>
+                <textarea value={xfer.text} onChange={(e) => setXfer({ ...xfer, text: e.target.value })}
+                  placeholder='{"app":"Planner - Gui - Finamob", ...}'
+                  className="w-full h-32 border rounded-lg p-2 text-xs outline-none mb-2" style={{ borderColor: C.line, fontFamily: "monospace" }} />
+                {xfer.err && <p className="text-xs mb-2" style={{ color: C.danger }}>{xfer.err}</p>}
+                <button onClick={() => doImportText(xfer.text)}
+                  className="w-full rounded-lg py-2 text-sm font-medium text-white" style={{ background: C.stamp }}>
+                  Importar e recarregar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {showTpl && (
         <div className="fixed inset-0 z-30 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.5)" }} onClick={() => setShowTpl(false)}>
           <div className="w-full max-w-sm rounded-2xl p-5 max-h-full overflow-y-auto" style={{ background: "#fff" }} onClick={(e) => e.stopPropagation()}>
@@ -1264,6 +1393,8 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         <TeamModal
           users={meta.users} me={me}
           tmbKey={tmbKey} onSaveKey={saveTmbKey}
+          onExport={() => { setShowTeam(false); setXfer({ mode: "export", text: JSON.stringify(getSnapshot()) }); }}
+          onImport={() => { setShowTeam(false); setXfer({ mode: "import", text: "" }); }}
           onClose={() => setShowTeam(false)}
           onAdd={(name, area) => addUser(name, area)}
           onUpdate={updateUser}
