@@ -20,7 +20,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   };
 
   const Card = ({ title, sub, children }) => (
-    <div className="rounded-xl border p-4" style={{ borderColor: D.line, background: D.card }}>
+    <div className="rounded-xl border p-4 mb-3 break-inside-avoid" style={{ borderColor: D.line, background: D.card }}>
       <p className="text-sm font-semibold mb-2.5" style={{ color: D.text }}>
         {title}{sub && <span className="font-normal ml-1.5" style={{ color: D.mut }}>· {sub}</span>}
       </p>
@@ -211,7 +211,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+      <div className="md:columns-2 gap-3">
         {B.map((b) => {
           if (b.type === "list") return renderList(b);
           if (b.type === "table") return renderTable(b);
