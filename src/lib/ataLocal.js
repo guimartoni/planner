@@ -43,6 +43,8 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
           decisoes.push(`${t} (${rows.length}): ${capList(rows).join(", ")}${obs}`);
           if (/REALIZADAS/i.test(t)) stats.push(`${rows.length} visitas realizadas`);
           else stats.push(`${rows.length} em "${t.toLowerCase()}"`);
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
         }
       }
       if (b.type === "table") {
@@ -60,11 +62,17 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
             const vol = ci >= 0 ? rows.reduce((a, r) => a + num(r[ci]), 0) : 0;
             stats.push(`fila SQL a apresentar de ${fmtN(vol)}M em ${rows.length} operação(ões)`);
           }
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
         }
       }
-      if (b.type === "metric" && String(b.value || "").trim()) {
-        decisoes.push(`${t}: ${b.value}${obs}`);
-        stats.push(`${t.toLowerCase()}: ${b.value}`);
+      if (b.type === "metric") {
+        if (String(b.value || "").trim()) {
+          decisoes.push(`${t}: ${b.value}${obs}`);
+          stats.push(`${t.toLowerCase()}: ${b.value}`);
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
+        }
       }
       if (b.type === "check") {
         decisoes.push(`${t}: ${b.checked ? "Realizado" : "Não realizado"}${obs}`);
@@ -79,13 +87,19 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
         if (partes.length) {
           decisoes.push(`${t}${b.comite ? ` (comitê ${b.comite})` : ""}: ${partes.join("; ")}${obs}`);
           stats.push(`comitê com ${partes.join(", ")}`);
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
         }
       }
-      if (b.type === "text" && (b.text || "").trim()) {
-        (b.text || "").split("\n").map((l) => l.trim()).filter(Boolean).forEach((l) => {
-          const semTask = !users.some((u) => l.toLowerCase().includes("@" + u.name.toLowerCase()));
-          if (semTask) decisoes.push(`${t}: ${l.replace(/\*/g, "").trim()}`);
-        });
+      if (b.type === "text") {
+        if ((b.text || "").trim()) {
+          (b.text || "").split("\n").map((l) => l.trim()).filter(Boolean).forEach((l) => {
+            const semTask = !users.some((u) => l.toLowerCase().includes("@" + u.name.toLowerCase()));
+            if (semTask) decisoes.push(`${t}: ${l.replace(/\*/g, "").trim()}`);
+          });
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
+        }
       }
     });
 

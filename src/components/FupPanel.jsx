@@ -1,7 +1,7 @@
 /* Painel visual do FUP — renderiza TODOS os blocos preenchidos, na ordem
    do template, com deltas vs semana anterior. Funciona para Farming,
    Inbound, Parcerias e qualquer template futuro. */
-export default function FupPanel({ blocks, prevBlocks, header }) {
+export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   const num = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
   const fmtN = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
   const norm = (s) => (s || "").trim().toLowerCase();
@@ -38,6 +38,7 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
   const Comment = ({ b }) => (b.comment && b.comment.trim()
     ? <p className="text-xs mt-2 whitespace-pre-wrap" style={{ color: D.mut }}>💬 {b.comment.trim()}</p>
     : null);
+  const SemInfo = () => <p className="text-sm italic" style={{ color: D.mut }}>— sem informações</p>;
   const isNew = (b, name) => { const p = findPrev(b); return p ? !names(p).map(norm).includes(norm(name)) : false; };
   const repeats = (b, name) => { const p = findPrev(b); return p ? names(p).map(norm).includes(norm(name)) : false; };
   const dSort = (rows, di) => [...rows].sort((a, b) => {
@@ -82,9 +83,10 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
   /* ---------- um card por bloco, na ordem do template ---------- */
   const renderList = (b) => {
     const rows = (b.rows || []).filter(Boolean);
-    if (!rows.length && !(b.comment || "").trim()) return null;
+    if (!rows.length && !(b.comment || "").trim() && !showEmpty) return null;
     return (
-      <Card key={b.id} title={b.title} sub={`${rows.length}`}>
+      <Card key={b.id} title={b.title} sub={rows.length ? `${rows.length}` : null}>
+        {rows.length === 0 && <SemInfo />}
         {rows.map((n, i) => (
           <Row key={i} last={i === rows.length - 1}>
             <span className="flex-1" style={{ color: D.text }}>{n}</span>
@@ -98,7 +100,7 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
 
   const renderTable = (b) => {
     const rows = (b.rows || []).filter((r) => (r || []).some(Boolean));
-    if (!rows.length && !(b.comment || "").trim()) return null;
+    if (!rows.length && !(b.comment || "").trim() && !showEmpty) return null;
     const dateCi = colIdx(b, /data/i);
     const sorted = /AGENDADAS/i.test(b.title) && dateCi > 0 ? dSort(rows, dateCi) : rows;
     const opsCi = colIdx(b, /opera|n[ºo]/i);
@@ -109,7 +111,8 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
     const showNew = /AGENDADAS|REALIZADAS|NOVOS/i.test(b.title);
     const showRep = /A AGENDAR|A REALIZAR/i.test(b.title);
     return (
-      <Card key={b.id} title={b.title} sub={sub}>
+      <Card key={b.id} title={b.title} sub={rows.length ? sub : null}>
+        {rows.length === 0 && <SemInfo />}
         {sorted.map((r, i) => (
           <Row key={i} last={i === sorted.length - 1}>
             <span className="flex-1 truncate" style={{ color: D.text }}>{r[0]}</span>
@@ -139,10 +142,13 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
   );
 
   const renderMetric = (b) => {
-    // o valor já está nos KPIs do topo; o card só aparece se houver comentário
-    if (!(b.comment || "").trim()) return null;
+    // o valor já está nos KPIs do topo; o card aparece se houver comentário
+    // ou (na ata) se estiver sem valor, para registrar "sem informações"
+    const vazio = !String(b.value || "").trim();
+    if (!(b.comment || "").trim() && !(showEmpty && vazio)) return null;
     return (
-      <Card key={b.id} title={b.title} sub={String(b.value || "")}>
+      <Card key={b.id} title={b.title} sub={vazio ? null : String(b.value)}>
+        {vazio && <SemInfo />}
         <Comment b={b} />
       </Card>
     );
@@ -150,9 +156,10 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
 
   const renderSql = (b) => {
     const total = ["aprovados", "ressalvados", "reprovados"].reduce((a, g) => a + (b[g] || []).reduce((x, r) => x + num(r[1]), 0), 0);
-    if (!total && !(b.comment || "").trim()) return null;
+    if (!total && !(b.comment || "").trim() && !showEmpty) return null;
     return (
-      <Card key={b.id} title={b.title} sub={`R$ ${fmtN(total)}M${b.comite ? ` · ${b.comite}` : ""}`}>
+      <Card key={b.id} title={b.title} sub={total ? `R$ ${fmtN(total)}M${b.comite ? ` · ${b.comite}` : ""}` : null}>
+        {!total && <SemInfo />}
         {[["aprovados", "aprovado", D.greenBg, D.green], ["ressalvados", "ressalvado", D.amberBg, D.amber], ["reprovados", "reprovado", D.redBg, D.red]].map(([g, label, bg, color]) =>
           (b[g] || []).map((r, i) => (
             <Row key={g + i}>
@@ -168,10 +175,11 @@ export default function FupPanel({ blocks, prevBlocks, header }) {
   };
 
   const renderText = (b) => {
-    if (!(b.text || "").trim() && !(b.comment || "").trim()) return null;
+    const vazio = !(b.text || "").trim();
+    if (vazio && !(b.comment || "").trim() && !showEmpty) return null;
     return (
       <Card key={b.id} title={b.title}>
-        <p className="text-sm whitespace-pre-wrap leading-6" style={{ color: D.sub }}>{b.text}</p>
+        {vazio ? <SemInfo /> : <p className="text-sm whitespace-pre-wrap leading-6" style={{ color: D.sub }}>{b.text}</p>}
         <Comment b={b} />
       </Card>
     );

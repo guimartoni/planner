@@ -46,7 +46,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
             className="px-3 py-1.5 rounded-lg text-xs font-medium text-white no-underline" style={{ background: "#1FAF57" }}>WhatsApp</a>
           <button onClick={onReopen} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: "#E2E5E9", color: "#374151" }}>✏️ Reabrir</button>
         </div>
-        <FupPanel blocks={body.blocks} prevBlocks={prevBlocks}
+        <FupPanel blocks={body.blocks} prevBlocks={prevBlocks} showEmpty
           header={{ title: s0.titulo || "FUP semanal", crumb: `FUP ${s0.data || ""}`, badge: "Semana atual" }} />
         {s0.resumo && (
           <div className="rounded-2xl p-4 mt-3" style={{ background: "#14171C" }}>
