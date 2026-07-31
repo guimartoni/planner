@@ -36,6 +36,42 @@ export async function writePlannerData(data) {
   return await res.json();
 }
 
+/* ---------- arquivos genéricos (fila de IA em /planner-ia-fila) ---------- */
+
+/* Lê um JSON em qualquer caminho do OneDrive. Retorna null se não existir. */
+export async function readJsonFile(path) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root:${path}:/content`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Erro ao ler ${path} (HTTP ${res.status})`);
+  return await res.json();
+}
+
+/* Grava um JSON em qualquer caminho do OneDrive (cria a pasta se preciso). */
+export async function writeJsonFile(path, data) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root:${path}:/content`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Erro ao gravar ${path} (HTTP ${res.status})`);
+  return await res.json();
+}
+
+export async function deleteFile(path) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root:${path}:`, { method: "DELETE" });
+  return res.ok || res.status === 404;
+}
+
+/* Garante que uma pasta exista na raiz do OneDrive (409 = já existe, ok). */
+export async function ensureFolder(name) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root/children`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" }),
+  });
+  return res.ok || res.status === 409;
+}
+
 /* Gravação de emergência (página fechando): melhor esforço, sem await. */
 export function writePlannerDataKeepalive(data) {
   if (!cachedToken) return;

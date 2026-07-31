@@ -1,10 +1,18 @@
 import { useMemo, useRef, useState } from "react";
-import { Sparkles, Star } from "lucide-react";
+import { FileText, Loader2, Sparkles, Star } from "lucide-react";
 import { C } from "../lib/util.js";
-import { bodyText, blocksToText, parseDraftTasks } from "../lib/data.js";
+import { bodyText, parseDraftTasks } from "../lib/data.js";
 import Avatar from "./Avatar.jsx";
+import { BlocksEditor } from "./Blocks.jsx";
+import FupPanel from "./FupPanel.jsx";
 
-export default function Editor({ noteMeta, body, users, sections, onTitle, onMeta, onBody, saveState }) {
+export default function Editor({
+  noteMeta, body, users, sections, prevBlocks, tplInfo, tplSiblings,
+  onGoNote, onSaveTemplate, onTitle, onMeta, onBody, saveState,
+  onConclude, iaState,
+}) {
+  const [tplSaved, setTplSaved] = useState(false);
+  const [viewMode, setViewMode] = useState("edit"); // edit | panel
   const taRef = useRef(null);
   const bgRef = useRef(null);
   const [mentionQ, setMentionQ] = useState(null);
@@ -129,6 +137,8 @@ export default function Editor({ noteMeta, body, users, sections, onTitle, onMet
     mentionQ === null ? false : u.name.toLowerCase().includes(mentionQ.toLowerCase())
   );
 
+  const iaBusy = iaState && (iaState.status === "fila" || iaState.status === "gerando");
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-5">
       <input
@@ -151,23 +161,88 @@ export default function Editor({ noteMeta, body, users, sections, onTitle, onMet
         className="w-full text-sm rounded-lg border px-3 py-2 mb-2 outline-none"
         style={{ borderColor: C.line, background: "#fff", color: "#374151" }}
       />
+      {tplInfo && (
+        <div className="text-xs mb-2 flex items-center gap-1.5 flex-wrap" style={{ color: C.stamp }}>
+          <FileText size={12} /> Modelo: <b>{tplInfo.name}</b>
+          <label className="flex items-center gap-1" style={{ color: "#4B5563" }}>
+            · data do FUP:
+            <input type="date"
+              value={(() => { const m = (noteMeta.createdAt || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; })()}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const [y, mo, d] = e.target.value.split("-");
+                const br = `${d}/${mo}/${y}`;
+                const newTitle = (noteMeta.title || "").includes(noteMeta.createdAt)
+                  ? noteMeta.title.replace(noteMeta.createdAt, br)
+                  : noteMeta.title;
+                onMeta({ createdAt: br, title: newTitle });
+              }}
+              className="border rounded-md px-1.5 py-0.5 text-xs outline-none" style={{ borderColor: C.line }} />
+          </label>
+          {tplInfo.prevDate
+            ? <span> · comparará com <b>{tplInfo.prevDate}</b></span>
+            : <span> · primeira semana (sem comparativo)</span>}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
+        {body.blocks && (
+          <button onClick={() => setViewMode((v) => (v === "panel" ? "edit" : "panel"))}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={viewMode === "panel" ? { background: C.ink, color: "#fff" } : { background: C.stampSoft, color: C.stamp }}>
+            {viewMode === "panel" ? "✏️ Editar" : "📊 Painel"}
+          </button>
+        )}
+        {!tplInfo && !body.blocks && (
+          <button onClick={() => { onSaveTemplate(); setTplSaved(true); setTimeout(() => setTplSaved(false), 2000); }}
+            className="px-3 py-1.5 rounded-lg text-sm" style={{ color: "#4B5563", background: "#E2E5E9" }} title="Transforma esta estrutura num modelo semanal reutilizável">
+            {tplSaved ? "✓ Modelo salvo" : "Salvar como modelo"}
+          </button>
+        )}
         <div className="flex-1" />
-        <button disabled title="Chega na Sessão 3 — a ata será gerada pela fila de IA"
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold text-white opacity-40 cursor-not-allowed"
-          style={{ background: C.stamp }}>
-          <Sparkles size={14} /> Gerar ata (Sessão 3)
+        <button onClick={onConclude} disabled={iaBusy}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold text-white"
+          style={{ background: C.stamp, opacity: iaBusy ? 0.7 : 1 }}>
+          {iaBusy ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {iaState?.status === "gerando" ? "Gerando ata…" : iaState?.status === "fila" ? "Na fila da IA…" : "Gerar ata"}
         </button>
       </div>
+      {iaState?.status === "fila" && (
+        <p className="text-xs mb-2 rounded-lg px-3 py-2" style={{ background: C.stampSoft, color: C.stamp }}>
+          ⏳ Pedido na fila da IA — a ata fica pronta em alguns minutos e aparece aqui sozinha. Pode continuar trabalhando ou até fechar o app.
+        </p>
+      )}
+      {iaState?.status === "erro" && <p className="text-xs mb-2" style={{ color: C.danger }}>{iaState.msg}</p>}
 
       {body.blocks ? (
-        <div className="rounded-xl border p-4 text-sm" style={{ borderColor: C.line, background: "#fff" }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: C.date }}>
-            Esta página usa blocos estruturados (FUP semanal) — o editor de blocos chega na Sessão 3. Conteúdo atual:
-          </p>
-          <pre className="whitespace-pre-wrap text-xs leading-5" style={{ color: "#374151", fontFamily: "inherit" }}>{blocksToText(body.blocks)}</pre>
-        </div>
+        viewMode === "panel" ? (
+          <>
+            {tplSiblings && (() => {
+              const idx = tplSiblings.findIndex((s) => s.id === noteMeta.id);
+              const prev = idx > 0 ? tplSiblings[idx - 1] : null;
+              const next = idx >= 0 && idx < tplSiblings.length - 1 ? tplSiblings[idx + 1] : null;
+              return (
+                <div className="flex items-center justify-center gap-2 mb-2 text-sm">
+                  <button disabled={!prev} onClick={() => prev && onGoNote(prev.id)}
+                    className="px-2.5 py-1 rounded-lg font-medium" style={{ background: prev ? C.stampSoft : "#EEF0F2", color: prev ? C.stamp : "#B0B5BC" }}>
+                    ‹ {prev ? prev.date : "início"}
+                  </button>
+                  <span className="px-2 font-semibold" style={{ color: "#374151" }}>{noteMeta.createdAt}</span>
+                  <button disabled={!next} onClick={() => next && onGoNote(next.id)}
+                    className="px-2.5 py-1 rounded-lg font-medium" style={{ background: next ? C.stampSoft : "#EEF0F2", color: next ? C.stamp : "#B0B5BC" }}>
+                    {next ? next.date : "atual"} ›
+                  </button>
+                </div>
+              );
+            })()}
+            <FupPanel blocks={body.blocks} prevBlocks={prevBlocks} />
+          </>
+        ) : (
+          <BlocksEditor
+            blocks={body.blocks}
+            onChange={(blocks) => onBody({ blocks })}
+            users={users} sections={sections} />
+        )
       ) : (
         <>
           <div className="flex items-center gap-1 mb-1.5 flex-wrap">

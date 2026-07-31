@@ -5,7 +5,10 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS } from "./lib/blocks.js";
+import { buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, pollResponse } from "./ia.js";
 import { usePlannerData } from "./store.js";
+import AtaDocument from "./components/AtaDocument.jsx";
 import Avatar from "./components/Avatar.jsx";
 import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
@@ -13,7 +16,7 @@ import TasksView from "./components/TasksView.jsx";
 import TeamModal from "./components/TeamModal.jsx";
 import TrashView from "./components/TrashView.jsx";
 
-const APP_BUILD = "Sessão 2 · dados no OneDrive";
+const APP_BUILD = "Sessão 3 · templates FUP + atas via fila de IA";
 const ME_KEY = "planner-me-v1";
 
 /* Normaliza os dados na carga: semente inicial, caderno Diário como
@@ -30,6 +33,21 @@ function prepareData(data) {
   const beforeTasks = (m.tasks || []).length;
   m = { ...m, tasks: (m.tasks || []).filter((t) => t.userId) };
   if ((m.tasks || []).length !== beforeTasks) changed = true;
+
+  // Templates estruturados v2 (FUP Farming / Inbound / Parcerias)
+  if (!m.templates) { m = { ...m, templates: [] }; changed = true; }
+  if (!m.templates.some((t) => t.v === 2 && /farming/i.test(t.name))) {
+    m = { ...m, templates: [{ id: uid(), name: "FUP Semanal — Farming", v: 2, blocksDef: FARMING_BLOCKS() }, ...m.templates] };
+    changed = true;
+  }
+  if (!m.templates.some((t) => /inbound/i.test(t.name))) {
+    m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Inbound", v: 2, blocksDef: INBOUND_BLOCKS() }] };
+    changed = true;
+  }
+  if (!m.templates.some((t) => /parceria/i.test(t.name))) {
+    m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Parcerias", v: 2, blocksDef: PARCERIAS_BLOCKS() }] };
+    changed = true;
+  }
 
   let daily = m.notebooks.find((nb) => nb.daily);
   if (!daily) {
@@ -92,8 +110,18 @@ export default function Planner() {
   const [diariosOpen, setDiariosOpen] = useState(false);
   const [moveId, setMoveId] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [showTpl, setShowTpl] = useState(false);
+  const [tplDate, setTplDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [prevBlocks, setPrevBlocks] = useState(null);
+  const [iaErr, setIaErr] = useState({}); // noteId -> mensagem
+  const [directBusy, setDirectBusy] = useState(false);
+  const noteIdRef = useRef(null);
 
   useEffect(() => { setDiariosOpen(false); }, [secId]);
+  useEffect(() => { noteIdRef.current = noteId; }, [noteId]);
 
   /* ---------- entrada: identificar usuário e abrir o Diário de hoje ---------- */
   useEffect(() => {
@@ -445,6 +473,152 @@ export default function Planner() {
     setNbId(toNbId); setSecId(toSecId); setNoteId(nId);
   };
 
+  /* ---------- templates de atas semanais (FUP) ---------- */
+  const prevOfTemplate = (nm) => {
+    if (!nm || !nm.templateId || !meta) return null;
+    let prev = null;
+    meta.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+      if (n.templateId === nm.templateId && n.id !== nm.id && dateKeyBR(n.createdAt) <= dateKeyBR(nm.createdAt)) {
+        if (!prev || dateKeyBR(n.createdAt) > dateKeyBR(prev.createdAt)) prev = n;
+      }
+    })));
+    return prev;
+  };
+
+  useEffect(() => {
+    setPrevBlocks(null);
+    if (!noteMeta || !noteMeta.templateId) return;
+    const p = prevOfTemplate(noteMeta);
+    if (!p) return;
+    const pb = loadBody(p.id);
+    if (pb && pb.blocks) setPrevBlocks(pb.blocks);
+  }, [noteId, cloudPhase, meta && meta.notebooks]); // eslint-disable-line
+
+  const createFromTemplate = (tpl, dateBR) => {
+    const when = dateBR || todayBR();
+    let prev = null;
+    meta.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+      if (n.templateId === tpl.id && dateKeyBR(n.createdAt) < dateKeyBR(when)) {
+        if (!prev || dateKeyBR(n.createdAt) > dateKeyBR(prev.createdAt)) prev = n;
+      }
+    })));
+    let content = tpl.skeleton || "";
+    let blocks = tpl.v === 2 ? JSON.parse(JSON.stringify(tpl.blocksDef || [])) : null;
+    let participants = "";
+    if (prev) {
+      const pb = loadBody(prev.id);
+      if (tpl.v === 2 && pb && pb.blocks) blocks = JSON.parse(JSON.stringify(pb.blocks));
+      else if (pb && pb.content) content = pb.content;
+      participants = prev.participants || "";
+    }
+    const n = { id: uid(), title: `${tpl.name} — ${when}`, createdAt: when, concluded: false, templateId: tpl.id, participants, author: me?.name || "" };
+    setMeta((m) => ({
+      ...m,
+      notebooks: m.notebooks.map((nb) => nb.id !== notebook.id ? nb : {
+        ...nb,
+        sections: nb.sections.map((s) => (s.id !== section.id ? s : { ...s, notes: [n, ...s.notes] })),
+      }),
+    }));
+    saveBody(n.id, { content: blocks ? "" : content, transcript: "", structured: null, blocks: blocks || undefined });
+    setNoteId(n.id); setView("editor"); setShowTpl(false); setShowSide(false);
+  };
+
+  const addTemplate = (name, skeleton) =>
+    setMeta((m) => ({ ...m, templates: [...(m.templates || []), { id: uid(), name, skeleton }] }));
+  const removeTemplate = (id) =>
+    setMeta((m) => ({ ...m, templates: (m.templates || []).filter((t) => t.id !== id) }));
+
+  /* ---------- gerar ata (fila de IA ou chave própria) ---------- */
+  const applyAta = (nId, parsed) => {
+    const m = metaRef.current;
+    let loc = null;
+    m.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+      if (n.id === nId) loc = { nb, s, n };
+    })));
+    if (!loc || !parsed || !parsed.titulo) {
+      setMeta((mm) => ({ ...mm, iaQueue: (mm.iaQueue || []).filter((q) => q.noteId !== nId) }));
+      return;
+    }
+    const b = loadBody(nId) || { content: "", transcript: "", structured: null };
+    const newTasks = (parsed.acoes || [])
+      .map((a) => ({ a, u: m.users.find((x) => x.name === a.responsavel) || null }))
+      .filter(({ u }) => !!u) // só vira tarefa se houver responsável delegado
+      .map(({ a, u }) => ({
+        id: uid(), noteId: nId, noteTitle: parsed.titulo || loc.n.title, nbName: loc.nb.name,
+        text: a.tarefa, userId: u.id, userName: u.name,
+        date: a.prazo || null, done: false, important: !!a.importante, origin: "ia",
+      }));
+    const nextBody = { ...b, structured: parsed };
+    saveBody(nId, nextBody);
+    if (noteIdRef.current === nId) setBody(nextBody);
+    setIaErr((e) => { const { [nId]: _drop, ...rest } = e; return rest; });
+    setMeta((mm) => ({
+      ...mm,
+      iaQueue: (mm.iaQueue || []).filter((q) => q.noteId !== nId),
+      tasks: [...(mm.tasks || []).filter((t) => t.noteId !== nId), ...newTasks],
+      notebooks: mm.notebooks.map((nb) => nb.id !== loc.nb.id ? nb : {
+        ...nb,
+        sections: nb.sections.map((s) => s.id !== loc.s.id ? s : {
+          ...s,
+          notes: s.notes.map((n) => (n.id !== nId ? n : { ...n, concluded: true, title: parsed.titulo || n.title })),
+        }),
+      }),
+    }));
+  };
+
+  const concludeAta = async () => {
+    if (!noteMeta || !body) return;
+    const nId = noteId;
+    setIaErr((e) => { const { [nId]: _drop, ...rest } = e; return rest; });
+    const prompt = buildAtaPrompt({ noteMeta, body, users: meta.users, prevBlocks });
+    if (getAnthropicKey()) {
+      setDirectBusy(true);
+      try {
+        const parsed = await callDirect(prompt);
+        applyAta(nId, parsed);
+      } catch (e) {
+        setIaErr((x) => ({ ...x, [nId]: `Não consegui gerar a ata (${e.message || "erro"}). Verifique a chave da API em Equipe ou tente de novo.` }));
+      }
+      setDirectBusy(false);
+    } else {
+      try {
+        const id = await enqueueRequest({ tipo: "ata", noteId: nId, prompt });
+        setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id, noteId: nId, tipo: "ata", criadoEm: Date.now() }] }));
+      } catch (e) {
+        setIaErr((x) => ({ ...x, [nId]: "Não consegui enviar o pedido para a fila no OneDrive — verifique a internet e tente de novo." }));
+      }
+    }
+  };
+
+  /* polling da fila: a cada 10s procura respostas da IA no OneDrive */
+  useEffect(() => {
+    if (phase !== "ready") return;
+    const t = setInterval(async () => {
+      const q = metaRef.current?.iaQueue || [];
+      if (!q.length) return;
+      for (const item of q) {
+        if (Date.now() - (item.criadoEm || 0) > 30 * 60 * 1000) {
+          setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
+          setIaErr((e) => ({ ...e, [item.noteId]: "A fila da IA não respondeu em 30 minutos — confira se a tarefa do Cowork está ativa e gere a ata de novo." }));
+          continue;
+        }
+        try {
+          const parsed = await pollResponse(item.id);
+          if (parsed) applyAta(item.noteId, parsed);
+        } catch (e) { /* tenta no próximo ciclo */ }
+      }
+    }, 10000);
+    return () => clearInterval(t);
+  }, [phase]); // eslint-disable-line
+
+  const iaState = directBusy && noteId
+    ? { status: "gerando" }
+    : (meta?.iaQueue || []).some((q) => q.noteId === noteId)
+      ? { status: "fila" }
+      : iaErr[noteId]
+        ? { status: "erro", msg: iaErr[noteId] }
+        : null;
+
   /* ---------- tarefas recorrentes ---------- */
   const materializeRecurring = () => {
     const m = metaRef.current;
@@ -604,7 +778,12 @@ export default function Planner() {
           <div className="border-t mx-3" style={{ borderColor: C.line }} />
           <div className="flex items-center justify-between px-3 pt-3 pb-1">
             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6B7280" }}>Páginas</span>
-            <button onClick={addNote} className="p-1 rounded-md" style={{ background: C.stamp, color: "#fff" }}><Plus size={14} /></button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setShowTpl(true)} className="p-1 rounded-md" style={{ background: "#E2E5E9", color: "#374151" }} title="Nova página de modelo (FUP semanal)">
+                <FileText size={14} />
+              </button>
+              <button onClick={addNote} className="p-1 rounded-md" style={{ background: C.stamp, color: "#fff" }}><Plus size={14} /></button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto px-2 pb-3">
             {section?.notes.length === 0 && (
@@ -690,16 +869,76 @@ export default function Planner() {
             </div>
           ) : !body ? (
             <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" color={C.ink} /></div>
+          ) : noteMeta.concluded && body.structured ? (
+            <AtaDocument body={body} tasks={(meta.tasks || []).filter((t) => t.noteId === noteId)} meta={meta}
+              prevBlocks={prevBlocks}
+              onReopen={() => patchNoteMeta({ concluded: false })} />
           ) : (
             <Editor
               noteMeta={noteMeta} body={body} users={meta.users}
               sections={allSections.filter((s) => s.secId !== secId)}
+              prevBlocks={prevBlocks}
+              tplInfo={noteMeta.templateId ? {
+                name: ((meta.templates || []).find((t) => t.id === noteMeta.templateId) || {}).name || "Modelo",
+                prevDate: (prevOfTemplate(noteMeta) || {}).createdAt || null,
+              } : null}
+              tplSiblings={(() => {
+                if (!noteMeta.templateId) return null;
+                const sib = [];
+                meta.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+                  if (n.templateId === noteMeta.templateId) sib.push({ id: n.id, date: n.createdAt });
+                })));
+                sib.sort((a, b) => dateKeyBR(a.date).localeCompare(dateKeyBR(b.date)));
+                return sib.length > 1 ? sib : null;
+              })()}
+              onGoNote={goToNote}
+              onSaveTemplate={() => addTemplate(noteMeta.title || "Modelo sem nome", body.content || "")}
               onTitle={(t) => patchNoteMeta({ title: t })} onMeta={patchNoteMeta} saveState={saveState}
               onBody={patchBody}
+              onConclude={concludeAta}
+              iaState={iaState}
             />
           )}
         </main>
       </div>
+
+      {showTpl && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.5)" }} onClick={() => setShowTpl(false)}>
+          <div className="w-full max-w-sm rounded-2xl p-5 max-h-full overflow-y-auto" style={{ background: "#fff" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-semibold" style={{ color: "#1F2937" }}>Modelos de ata semanal</h2>
+              <button onClick={() => setShowTpl(false)}><X size={18} /></button>
+            </div>
+            <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
+              A nova página nasce no subtema atual, já preenchida com os dados da semana anterior — você só atualiza. Ao gerar a ata, a IA monta o comparativo entre as semanas automaticamente.
+            </p>
+            <label className="flex items-center gap-2 text-xs mb-3" style={{ color: "#4B5563" }}>
+              Data do FUP:
+              <input type="date" value={tplDate} onChange={(e) => setTplDate(e.target.value)}
+                className="border rounded-lg px-2 py-1.5 text-xs outline-none" style={{ borderColor: C.line }} />
+            </label>
+            <div className="flex flex-col gap-1.5 mb-3">
+              {(meta.templates || []).map((t) => (
+                <div key={t.id} className="flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: C.line }}>
+                  <span className="flex-1 text-sm font-medium" style={{ color: "#1F2937" }}>{t.name}</span>
+                  <button onClick={() => {
+                    const [y, mo, d] = (tplDate || "").split("-");
+                    createFromTemplate(t, y ? `${d}/${mo}/${y}` : undefined);
+                  }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium text-white" style={{ background: C.stamp }}>
+                    Criar
+                  </button>
+                  <button onClick={() => removeTemplate(t.id)} style={{ color: C.danger }}><Trash2 size={13} /></button>
+                </div>
+              ))}
+              {(meta.templates || []).length === 0 && <p className="text-xs" style={{ color: "#9CA3AF" }}>Nenhum modelo ainda.</p>}
+            </div>
+            <p className="text-xs" style={{ color: "#9CA3AF" }}>
+              Para criar um modelo novo: monte uma página livre com a estrutura desejada e toque em <b>"Salvar como modelo"</b> no editor.
+            </p>
+          </div>
+        </div>
+      )}
 
       {moveId && (
         <div className="fixed inset-0 z-30 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.5)" }} onClick={() => setMoveId(null)}>

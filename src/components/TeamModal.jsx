@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { X, Trash2 } from "lucide-react";
 import { C } from "../lib/util.js";
+import { getAnthropicKey, setAnthropicKey } from "../ia.js";
 import Avatar from "./Avatar.jsx";
 
 export default function TeamModal({ users, me, onClose, onAdd, onUpdate, onRemove, onSwitch, buildLabel }) {
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
   const [cfg, setCfg] = useState(null); // {id, name, area, phone, email}
+  const [aKey, setAKey] = useState(getAnthropicKey());
+  const [aKeySaved, setAKeySaved] = useState(false);
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center p-4" style={{ background: "rgba(20,26,38,.5)" }}>
       <div className="w-full max-w-sm rounded-2xl p-5 max-h-full overflow-y-auto" style={{ background: "#fff" }}>
@@ -63,6 +66,25 @@ export default function TeamModal({ users, me, onClose, onAdd, onUpdate, onRemov
             </div>
           ))}
           {users.length === 0 && <p className="text-xs" style={{ color: "#9CA3AF" }}>Ninguém cadastrado ainda.</p>}
+        </div>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>IA instantânea (opcional)</p>
+        <div className="flex flex-col gap-1.5 mb-3 rounded-lg border p-2" style={{ borderColor: C.line, background: "#F5F6F8" }}>
+          <p className="text-xs" style={{ color: "#6B7280" }}>
+            Sem chave, o "Gerar ata" usa a <b>fila de IA</b> (custo zero, pronto em alguns minutos).
+            Com uma chave da API Anthropic (console.anthropic.com), a resposta sai em segundos.
+            Custo estimado: <b>menos de R$ 0,50 por ata</b>; recomendamos definir um limite mensal (ex.: US$ 5) no painel da Anthropic.
+            A chave fica só neste navegador.
+          </p>
+          <div className="flex gap-1.5">
+            <input value={aKey} onChange={(e) => setAKey(e.target.value)} placeholder="sk-ant-… (deixe vazio para usar a fila)"
+              type="password"
+              className="flex-1 border rounded-lg px-2.5 py-1.5 text-xs outline-none" style={{ borderColor: C.line }} />
+            <button onClick={() => { setAnthropicKey(aKey); setAKeySaved(true); setTimeout(() => setAKeySaved(false), 1500); }}
+              className="px-3 rounded-lg text-xs font-medium text-white" style={{ background: C.stamp }}>
+              {aKeySaved ? "✓" : "Salvar"}
+            </button>
+          </div>
+          {getAnthropicKey() && <p className="text-xs" style={{ color: C.stamp }}>✓ modo instantâneo ativo neste navegador</p>}
         </div>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Adicionar pessoa</p>
         <div className="flex flex-col gap-2 mb-3">
