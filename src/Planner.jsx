@@ -7,7 +7,8 @@ import {
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS } from "./lib/blocks.js";
-import { TEXT_SCHEMA, buildAtaPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
+import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
+import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
 import { readJsonFile } from "./onedrive.js";
 import { usePlannerData } from "./store.js";
@@ -595,28 +596,15 @@ export default function Planner() {
     }));
   };
 
-  const concludeAta = async () => {
+  /* Ata gerada LOCALMENTE — as atas seguem sempre o mesmo padrão, então o
+     próprio app monta tudo dos blocos: instantâneo, custo zero, sem IA. */
+  const concludeAta = () => {
     if (!noteMeta || !body) return;
-    const nId = noteId;
-    setIaErr((e) => { const { [nId]: _drop, ...rest } = e; return rest; });
-    const prompt = buildAtaPrompt({ noteMeta, body, users: meta.users, prevBlocks });
-    if (getAnthropicKey()) {
-      setDirectBusy(true);
-      try {
-        const parsed = await callDirect(prompt);
-        applyAta(nId, parsed);
-      } catch (e) {
-        setIaErr((x) => ({ ...x, [nId]: `Não consegui gerar a ata (${e.message || "erro"}). Verifique a chave da API em Equipe ou tente de novo.` }));
-      }
-      setDirectBusy(false);
-    } else {
-      try {
-        const id = await enqueueRequest({ tipo: "ata", noteId: nId, prompt });
-        setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id, noteId: nId, tipo: "ata", criadoEm: Date.now() }] }));
-      } catch (e) {
-        setIaErr((x) => ({ ...x, [nId]: "Não consegui enviar o pedido para a fila no OneDrive — verifique a internet e tente de novo." }));
-      }
-    }
+    const tplName = noteMeta.templateId
+      ? (((meta.templates || []).find((t) => t.id === noteMeta.templateId) || {}).name || null)
+      : null;
+    const parsed = gerarAtaLocal({ noteMeta, body, users: meta.users, prevBlocks, tplName });
+    applyAta(noteId, parsed);
   };
 
   /* polling da fila: a cada 10s procura respostas da IA no OneDrive */
@@ -764,53 +752,11 @@ export default function Planner() {
     setPendingAuto((meta.users || []).length > 0);
   }, [phase, meta]); // eslint-disable-line
 
-  /* ---------- resumo semanal (IA) ---------- */
-  const buildWeeklyPrompt = () => {
-    const m = metaRef.current;
-    const cut = new Date(); cut.setDate(cut.getDate() - 7);
-    const cutKey = dateKeyBR(`${String(cut.getDate()).padStart(2, "0")}/${String(cut.getMonth() + 1).padStart(2, "0")}/${cut.getFullYear()}`);
-    const pages = [];
-    for (const nb of m.notebooks) for (const s of nb.sections) for (const n of s.notes) {
-      if (dateKeyBR(n.createdAt) >= cutKey) {
-        const b = loadBody(n.id);
-        pages.push(`[${nb.name} · ${s.name}] ${n.title}: ${((b && b.structured && b.structured.resumo) || bodyText(b)).slice(0, 600)}`);
-      }
-    }
-    const done = (m.tasks || []).filter((t) => t.done).map((t) => `${t.text} (${t.userName || "?"})`);
-    const open = (m.tasks || []).filter((t) => !t.done).map((t) => `${t.text} (${t.userName || "?"}, ${t.date || "sem prazo"})`);
-    return `Você é o assistente do Planner - Gui - Finamob. Hoje é ${todayBR()}. Monte um RESUMO SEMANAL executivo em português, formatado para WhatsApp (use *negrito* e •), com: principais assuntos e decisões da semana, tarefas concluídas, tarefas em aberto/atrasadas por pessoa, e 2-3 recomendações de foco para a próxima semana. Máximo ~1500 caracteres.
-
-PÁGINAS DA SEMANA:
-${pages.join("\n").slice(0, 12000) || "(nenhuma)"}
-
-CONCLUÍDAS: ${done.join("; ") || "(nenhuma)"}
-EM ABERTO: ${open.join("; ") || "(nenhuma)"}
-
-Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"o resumo aqui"}`;
-  };
-
-  const weeklySummary = async () => {
+  /* Resumo semanal LOCAL: montado na hora das páginas e tarefas — custo zero. */
+  const weeklySummary = () => {
     setWeeklyOpen(true);
-    if (weeklyBusy || (metaRef.current?.iaQueue || []).some((q) => q.tipo === "resumo")) return;
-    setMeta((m) => { const { weeklyResumo: _drop, ...rest } = m; return rest; });
-    const prompt = buildWeeklyPrompt();
-    if (getAnthropicKey()) {
-      setWeeklyBusy(true);
-      try {
-        const parsed = await callDirect(prompt, TEXT_SCHEMA);
-        setMeta((m) => ({ ...m, weeklyResumo: { text: parsed.texto || "", em: Date.now() } }));
-      } catch (e) {
-        setMeta((m) => ({ ...m, weeklyResumo: { text: "Erro ao gerar o resumo — tente novamente.", em: Date.now() } }));
-      }
-      setWeeklyBusy(false);
-    } else {
-      try {
-        const id = await enqueueRequest({ tipo: "resumo", noteId: "resumo-semanal", prompt });
-        setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id, noteId: "resumo-semanal", tipo: "resumo", criadoEm: Date.now() }] }));
-      } catch (e) {
-        setMeta((m) => ({ ...m, weeklyResumo: { text: "Não consegui enviar o pedido para a fila — verifique a internet.", em: Date.now() } }));
-      }
-    }
+    const text = resumoSemanalLocal({ meta: metaRef.current, loadBody });
+    setMeta((m) => ({ ...m, weeklyResumo: { text, em: Date.now() } }));
   };
 
   /* ---------- pergunte ao acervo (IA) ---------- */

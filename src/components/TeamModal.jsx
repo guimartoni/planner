@@ -84,13 +84,13 @@ export default function TeamModal({ users, me, tmbKey, onSaveKey, anthropicKey, 
           </div>
           {tmbKey && <p className="text-xs" style={{ color: C.stamp }}>✓ chave configurada</p>}
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>IA automática (recomendado)</p>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>IA para perguntas (opcional)</p>
         <div className="flex flex-col gap-1.5 mb-3 rounded-lg border p-2" style={{ borderColor: C.line, background: "#F5F6F8" }}>
           <p className="text-xs" style={{ color: "#6B7280" }}>
-            Com uma chave da API Anthropic (<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline" style={{ color: C.stamp }}>console.anthropic.com</a>),
-            atas, resumos e o acervo respondem <b>em segundos, automaticamente, em todos os seus aparelhos</b> — a chave fica sincronizada
-            junto com seus dados no OneDrive. Custo: <b>~R$ 0,30 a 0,50 por ata</b>; defina um limite mensal (ex.: US$ 5) no painel da Anthropic.
-            Sem chave, os pedidos vão para a fila de IA e esperam um processador.
+            <b>Atas e resumo semanal são gerados pelo próprio app — instantâneos e sem nenhum custo.</b>{" "}
+            Esta chave da API Anthropic (<a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" className="underline" style={{ color: C.stamp }}>console.anthropic.com</a>)
+            serve apenas para o <b>"Pergunte ao acervo"</b> (perguntas em linguagem natural sobre suas anotações).
+            Fica sincronizada em todos os aparelhos. Se não usar, deixe vazio.
           </p>
           <div className="flex gap-1.5">
             <input value={aKey} onChange={(e) => setAKey(e.target.value)} placeholder="sk-ant-…"
