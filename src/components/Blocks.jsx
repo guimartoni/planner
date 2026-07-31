@@ -5,7 +5,7 @@ import Avatar from "./Avatar.jsx";
 
 /* Textarea com os comandos @responsável / # prazo / !subtema — usada nos
    blocos de texto dos templates estruturados. */
-export function SmartTextarea({ value, onChange, users, sections, placeholder, minH }) {
+export function SmartTextarea({ value, onChange, users, sections, placeholder, minH, small }) {
   const taRef = useRef(null);
   const [mentionQ, setMentionQ] = useState(null);
   const [tagQ, setTagQ] = useState(null);
@@ -66,8 +66,10 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
           }
         }}
         placeholder={placeholder}
-        className="w-full outline-none resize-none text-sm leading-7 bg-transparent"
-        style={{ color: "#1F2937", minHeight: minH || 120 }}
+        className={small
+          ? "w-full outline-none resize-none text-xs leading-5 bg-transparent"
+          : "w-full outline-none resize-none text-sm leading-7 bg-transparent"}
+        style={{ color: small ? "#6B7280" : "#1F2937", minHeight: minH || (small ? 24 : 120) }}
       />
       {mentionQ !== null && (
         <div className="absolute left-2 top-8 z-20 rounded-xl border shadow-lg overflow-hidden w-64" style={{ background: "#fff", borderColor: C.line }}>
@@ -121,18 +123,18 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
 }
 
 /* ------------------------------------------------------------------ */
-const BlockComment = ({ b, onChange }) => (
+const BlockComment = ({ b, onChange, users, sections }) => (
   <div className="flex items-start gap-1.5 mt-2 pt-2 border-t" style={{ borderColor: "#EDEDE6" }}>
-    <span className="text-xs mt-1.5" title="Comentários">💬</span>
-    <textarea
-      value={b.comment || ""}
-      onChange={(e) => onChange({ ...b, comment: e.target.value })}
-      placeholder="Comentários deste bloco…"
-      rows={1}
-      className="flex-1 text-xs outline-none resize-none bg-transparent leading-5 pt-1"
-      style={{ color: "#6B7280", minHeight: 24 }}
-      onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-    />
+    <span className="text-xs mt-1" title="Comentários — aceita @responsável, # prazo, !subtema e * importante">💬</span>
+    <div className="flex-1">
+      <SmartTextarea
+        small
+        value={b.comment || ""}
+        onChange={(v) => onChange({ ...b, comment: v })}
+        users={users} sections={sections}
+        placeholder="Comentários deste bloco… (@ delega · # prazo · ! subtema · * importante)"
+      />
+    </div>
   </div>
 );
 
@@ -147,7 +149,7 @@ const BlockCard = ({ title, hint, extra, children }) => (
   </div>
 );
 
-function CheckBlock({ b, onChange }) {
+function CheckBlock({ b, onChange, users, sections }) {
   return (
     <BlockCard title={b.title}>
       <button
@@ -156,12 +158,12 @@ function CheckBlock({ b, onChange }) {
         style={b.checked ? { background: "#E4F1EB", color: C.stamp } : { background: "#FCEBEB", color: "#A32D2D" }}>
         {b.checked ? <><Check size={15} /> Realizado</> : <><X size={15} /> Não realizado — tocar quando acontecer</>}
       </button>
-      <BlockComment b={b} onChange={onChange} />
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
   );
 }
 
-function MetricBlock({ b, onChange }) {
+function MetricBlock({ b, onChange, users, sections }) {
   return (
     <BlockCard title={b.title}>
       <input
@@ -171,7 +173,7 @@ function MetricBlock({ b, onChange }) {
         className="w-32 border rounded-lg px-3 py-2 text-2xl font-semibold outline-none"
         style={{ borderColor: "#E3E5DE", background: "#fff", color: C.stamp }}
       />
-      <BlockComment b={b} onChange={onChange} />
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
   );
 }
@@ -179,7 +181,7 @@ function MetricBlock({ b, onChange }) {
 const cellCls = "border rounded-lg px-2 py-1.5 text-xs outline-none w-full";
 const cellStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151" };
 
-function ListBlock({ b, onChange }) {
+function ListBlock({ b, onChange, users, sections }) {
   const [draft, setDraft] = useState("");
   const rows = b.rows || [];
   const commit = () => { if (draft.trim()) { onChange({ ...b, rows: [...rows, draft.trim()] }); setDraft(""); } };
@@ -200,13 +202,13 @@ function ListBlock({ b, onChange }) {
             onKeyDown={(e) => { if (e.key === "Enter") commit(); }} onBlur={commit}
             placeholder="Adicionar…" className={cellCls} style={cellStyle} />
         </div>
-        <BlockComment b={b} onChange={onChange} />
+        <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
       </div>
     </BlockCard>
   );
 }
 
-function TableBlock({ b, onChange, onPromote, promoteLabel }) {
+function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
   const [draft, setDraft] = useState((b.cols || []).map(() => ""));
   const rows = b.rows || [];
   const commit = () => {
@@ -253,12 +255,12 @@ function TableBlock({ b, onChange, onPromote, promoteLabel }) {
           </div>
         </div>
       </div>
-      <BlockComment b={b} onChange={onChange} />
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
   );
 }
 
-function SqlBlock({ b, onChange }) {
+function SqlBlock({ b, onChange, users, sections }) {
   const num = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
   const fmtN = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
   const groups = [["aprovados", "✅ Aprovados", "#1E6B4F"], ["ressalvados", "⚠️ Ressalvados", "#B45309"], ["reprovados", "❌ Reprovados", "#B3372F"]];
@@ -282,7 +284,7 @@ function SqlBlock({ b, onChange }) {
           );
         })}
       </div>
-      <BlockComment b={b} onChange={onChange} />
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
   );
 }
@@ -326,7 +328,7 @@ function TextBlock({ b, onChange, users, sections }) {
         placeholder="Assuntos gerais, decisões e delegações da reunião…"
         minH={130}
       />
-      <BlockComment b={b} onChange={onChange} />
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
   );
 }
@@ -368,12 +370,12 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
   return (
     <div className="flex flex-col gap-3">
       {blocks.map((b, i) => {
-        if (b.type === "metric") return <MetricBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
-        if (b.type === "check") return <CheckBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
-        if (b.type === "list") return <ListBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
-        if (b.type === "table") return <TableBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)}
+        if (b.type === "metric") return <MetricBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "check") return <CheckBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "list") return <ListBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "table") return <TableBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections}
           onPromote={promoteTargets(b) ? (ri) => promoteRow(i, ri) : null} promoteLabel={(promoteTargets(b) || {}).label} />;
-        if (b.type === "sql") return <SqlBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
+        if (b.type === "sql") return <SqlBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         return <TextBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
       })}
     </div>
