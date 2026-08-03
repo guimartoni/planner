@@ -55,10 +55,10 @@ function prepareData(data) {
     m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Parcerias", v: 2, blocksDef: PARCERIAS_BLOCKS() }] };
     changed = true;
   }
-  // FUP Murilo (segundas): garante o bloco no fim do modelo Farming já existente
-  const fIdx = m.templates.findIndex((t) => t.v === 2 && /farming/i.test(t.name));
-  if (fIdx >= 0 && !(m.templates[fIdx].blocksDef || []).some((b) => b.type === "fup")) {
-    m = { ...m, templates: m.templates.map((t, i) => (i !== fIdx ? t : { ...t, blocksDef: [...(t.blocksDef || []), FUP_MURILO_BLOCK()] })) };
+  // FUP Murilo (segundas): garante o bloco no fim dos três modelos de FUP já existentes
+  const semFup = (t) => t.v === 2 && /farming|inbound|parceria/i.test(t.name) && !(t.blocksDef || []).some((b) => b.type === "fup");
+  if (m.templates.some(semFup)) {
+    m = { ...m, templates: m.templates.map((t) => (semFup(t) ? { ...t, blocksDef: [...(t.blocksDef || []), FUP_MURILO_BLOCK()] } : t)) };
     changed = true;
   }
 

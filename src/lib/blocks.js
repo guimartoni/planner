@@ -24,6 +24,7 @@ export const INBOUND_BLOCKS = () => ([
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
+  FUP_MURILO_BLOCK(),
 ]);
 
 export const PARCERIAS_BLOCKS = () => ([
@@ -36,6 +37,7 @@ export const PARCERIAS_BLOCKS = () => ([
   { id: uid(), type: "table", title: "📞 CALLS REALIZADAS COM CLIENTES NA SEMANA", cols: ["Cliente", "Observação"], rows: [] },
   { id: uid(), type: "list", title: "🤝 NOVOS PARCEIROS CONTRATADOS NA SEMANA", rows: [] },
   { id: uid(), type: "text", title: "📌 COMENTÁRIOS GERAIS", text: "" },
+  FUP_MURILO_BLOCK(),
 ]);
 
 /* Fatos objetivos comparando os blocos desta semana com os da anterior —
