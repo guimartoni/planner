@@ -243,13 +243,20 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
       setDraft((b.cols || []).map(() => ""));
     }
   };
+  /* Colunas de texto esticam para preencher o cartão; número/data têm largura fixa */
+  const colStyle = (ci) => {
+    const c = (b.cols || [])[ci] || "";
+    if (ci === 0) return { flex: "1 1 200px", minWidth: 170 };
+    if (/observa|pend|próximo|passo|tema|assunto|coment|previs/i.test(c)) return { flex: "1 1 170px", minWidth: 140 };
+    return { width: 130, flexShrink: 0 };
+  };
   return (
     <BlockCard title={`${b.title} (${rows.length})`} hint={b.hint}>
       <div className="overflow-x-auto">
-        <div className="min-w-fit flex flex-col gap-1">
+        <div className="flex flex-col gap-1" style={{ minWidth: "fit-content" }}>
           <div className="flex gap-1.5 pl-6 pr-6">
             {b.cols.map((c, i) => (
-              <p key={i} className="text-xs font-semibold" style={{ color: "#6B7280", width: i === 0 ? 170 : 110, flexShrink: 0 }}>{c}</p>
+              <p key={i} className="text-xs font-semibold" style={{ color: "#6B7280", ...colStyle(i) }}>{c}</p>
             ))}
           </div>
           {rows.map((r, ri) => (
@@ -258,7 +265,7 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
               {b.cols.map((c, ci) => (
                 <input key={ci} value={r[ci] || ""}
                   onChange={(e) => onChange({ ...b, rows: rows.map((x, j) => (j === ri ? x.map((v, k) => (k === ci ? e.target.value : v)) : x)) })}
-                  className={cellCls} style={{ ...cellStyle, width: ci === 0 ? 170 : 110, flexShrink: 0 }} />
+                  className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />
               ))}
               {onPromote && (
                 <button onClick={() => onPromote(ri)} className="shrink-0 p-0.5 rounded" title={promoteLabel || "Marcar como realizada"}
@@ -275,7 +282,7 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
                 onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
                 onBlur={() => { if (ci === b.cols.length - 1) commit(); }}
                 placeholder={c}
-                className={cellCls} style={{ ...cellStyle, width: ci === 0 ? 170 : 110, flexShrink: 0 }} />
+                className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />
             ))}
             <span className="w-4 shrink-0" />
           </div>
@@ -326,17 +333,17 @@ function SqlGroup({ label, color, sum, rows, onChange }) {
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-1.5">
             <input value={r[0]} onChange={(e) => onChange(rows.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))}
-              className={cellCls} style={{ ...cellStyle, width: 170, flexShrink: 0 }} />
+              className={cellCls} style={{ ...cellStyle, flex: "1 1 200px", minWidth: 170 }} />
             <input value={r[1]} onChange={(e) => onChange(rows.map((x, j) => (j === i ? [x[0], e.target.value] : x)))}
-              className={cellCls} style={{ ...cellStyle, width: 80, flexShrink: 0 }} placeholder="M" inputMode="decimal" />
+              className={cellCls} style={{ ...cellStyle, width: 90, flexShrink: 0 }} placeholder="M" inputMode="decimal" />
             <button onClick={() => onChange(rows.filter((_, j) => j !== i))} style={{ color: C.danger }}><X size={13} /></button>
           </div>
         ))}
         <div className="flex items-center gap-1.5">
           <input value={dn} onChange={(e) => setDn(e.target.value)} onKeyDown={(e) => e.key === "Enter" && commit()}
-            placeholder="Incorporadora" className={cellCls} style={{ ...cellStyle, width: 170, flexShrink: 0 }} />
+            placeholder="Incorporadora" className={cellCls} style={{ ...cellStyle, flex: "1 1 200px", minWidth: 170 }} />
           <input value={dv} onChange={(e) => setDv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && commit()} onBlur={commit}
-            placeholder="M" className={cellCls} style={{ ...cellStyle, width: 80, flexShrink: 0 }} inputMode="decimal" />
+            placeholder="M" className={cellCls} style={{ ...cellStyle, width: 90, flexShrink: 0 }} inputMode="decimal" />
           <span className="w-4" />
         </div>
       </div>
