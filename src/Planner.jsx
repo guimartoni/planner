@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, upgradeReunioes } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -69,6 +69,17 @@ function prepareData(data) {
     def.splice(pos >= 0 ? pos : def.length, 0, ...MIA_BLOCKS());
     m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
     changed = true;
+  }
+  // Inbound: reuniões agendadas/realizadas + consolidado do mês no topo
+  if (iIdx >= 0) {
+    let def = m.templates[iIdx].blocksDef || [];
+    let mudou = false;
+    if (def.some((b) => b.type === "metric" && /REUNIÕES DA SEMANA/i.test(b.title || ""))) { def = upgradeReunioes(def); mudou = true; }
+    if (!def.some((b) => b.type === "consolidado")) { def = [CONSOLIDADO_BLOCK(), ...def]; mudou = true; }
+    if (mudou) {
+      m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
+      changed = true;
+    }
   }
   // Lixeira: itens com mais de 30 dias são excluídos definitivamente
   const cut = new Date(); cut.setDate(cut.getDate() - 30);
@@ -229,9 +240,14 @@ export default function Planner() {
       m.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => { if (n.id === noteId) nm = n; })));
       const tpl = nm && !nm.concluded && nm.templateId ? (m.templates || []).find((t) => t.id === nm.templateId) : null;
       if (tpl && tpl.v === 2) {
-        const missing = (tpl.blocksDef || []).filter((tb) => !b.blocks.some((x) => x.title === tb.title));
-        if (missing.length) {
-          b = { ...b, blocks: [...b.blocks, ...missing.map((tb) => ({ ...JSON.parse(JSON.stringify(tb)), id: uid() }))] };
+        let blocks = b.blocks;
+        if (/inbound/i.test(tpl.name || "")) {
+          blocks = upgradeReunioes(blocks);
+          if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
+        }
+        const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
+        if (missing.length || blocks !== b.blocks) {
+          b = { ...b, blocks: [...blocks, ...missing.map((tb) => ({ ...JSON.parse(JSON.stringify(tb)), id: uid() }))] };
           saveBody(noteId, b);
         }
       }
@@ -472,6 +488,45 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
   };
 
   /* ---------- tarefas direto das anotações ---------- */
+  /* ---------- consolidado do mês (Inbound): soma todos os FUPs do mês ---------- */
+  const mesDe = (dataBR) => (dataBR || "").slice(3); // "DD/MM/AAAA" → "MM/AAAA"
+
+  const computeConsolidado = (tplId, mes, curId, curBlocks) => {
+    const m = metaRef.current;
+    const num = (s) => { const mm = String(s || "").replace(",", ".").match(/[\d.]+/); return mm ? parseFloat(mm[0]) : 0; };
+    const acc = { reunioes: 0, leadsIn: 0, leadsRem: 0, aprovados: 0, ressalvados: 0, reprovados: 0 };
+    m.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+      if (n.templateId !== tplId) return;
+      if ((n.mes || mesDe(n.createdAt)) !== mes) return;
+      const blocks = n.id === curId ? curBlocks : (loadBody(n.id) || {}).blocks;
+      (blocks || []).forEach((b) => {
+        if (b.type === "metric") {
+          if (/REALIZADAS|REUNIÕES DA SEMANA/i.test(b.title || "")) acc.reunioes += num(b.value);
+          else if (/LEADS INBOUND/i.test(b.title || "")) acc.leadsIn += num(b.value);
+          else if (/REMARKETING/i.test(b.title || "")) acc.leadsRem += num(b.value);
+        }
+        if (b.type === "sql") {
+          acc.aprovados += (b.aprovados || []).reduce((a, r) => a + num(r[1]), 0);
+          acc.ressalvados += (b.ressalvados || []).reduce((a, r) => a + num(r[1]), 0);
+          acc.reprovados += (b.reprovados || []).reduce((a, r) => a + num(r[1]), 0);
+        }
+      });
+    })));
+    Object.keys(acc).forEach((k) => { acc[k] = Math.round(acc[k] * 10) / 10; });
+    return acc;
+  };
+
+  useEffect(() => {
+    if (!body || !body.blocks || !noteMeta) return;
+    const ci = body.blocks.findIndex((x) => x.type === "consolidado");
+    if (ci < 0) return;
+    const mes = noteMeta.mes || mesDe(noteMeta.createdAt);
+    const vals = computeConsolidado(noteMeta.templateId, mes, noteMeta.id, body.blocks);
+    const cur = body.blocks[ci];
+    if (cur.mes === mes && JSON.stringify(cur.vals) === JSON.stringify(vals)) return;
+    patchBody((b) => ({ blocks: b.blocks.map((x, i) => (i === ci ? { ...x, mes, vals } : x)) }));
+  }, [body && body.blocks, noteMeta && noteMeta.mes, noteId, cloudPhase]); // eslint-disable-line
+
   const syncDraftTasks = () => {
     if (!body || !noteMeta || !notebook) return;
     const m = metaRef.current;
@@ -881,6 +936,10 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       const pb = loadBody(prev.id);
       if (tpl.v === 2 && pb && pb.blocks) {
         blocks = JSON.parse(JSON.stringify(pb.blocks));
+        if (/inbound/i.test(tpl.name || "")) {
+          blocks = upgradeReunioes(blocks);
+          if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
+        }
         // blocos que entraram no modelo depois também aparecem na página clonada
         (tpl.blocksDef || []).forEach((tb) => {
           if (!blocks.some((b) => b.title === tb.title)) blocks.push({ ...JSON.parse(JSON.stringify(tb)), id: uid() });

@@ -185,6 +185,32 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     );
   };
 
+  const renderConsolidado = (b) => {
+    const v = b.vals || {};
+    const items = [
+      ["Reuniões realizadas", v.reunioes, false],
+      ["Leads inbound", v.leadsIn, false],
+      ["Leads remarketing", v.leadsRem, false],
+      ["SQL aprovados", v.aprovados, true],
+      ["SQL ressalvados", v.ressalvados, true],
+      ["SQL reprovados", v.reprovados, true],
+    ];
+    if (!items.some(([, val]) => val) && !showEmpty) return null;
+    return (
+      <Card key={b.id} title={b.title} sub={b.mes || null}>
+        <div className="grid grid-cols-2 gap-2">
+          {items.map(([label, val, money]) => (
+            <div key={label} className="rounded-lg border px-3 py-2" style={{ borderColor: D.line, background: D.bg }}>
+              <p className="text-xs" style={{ color: D.mut }}>{label}</p>
+              <p className="text-lg font-semibold" style={{ color: D.text }}>{money ? `R$ ${fmtN(val || 0)}M` : (val || 0)}</p>
+            </div>
+          ))}
+        </div>
+        <Comment b={b} />
+      </Card>
+    );
+  };
+
   const renderFup = (b) => {
     const vazio = !(b.text || "").trim();
     if (vazio && !(b.comment || "").trim() && !showEmpty) return null;
@@ -231,6 +257,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
           if (b.type === "sql") return renderSql(b);
           if (b.type === "text") return renderText(b);
           if (b.type === "fup") return renderFup(b);
+          if (b.type === "consolidado") return renderConsolidado(b);
           return null;
         })}
       </div>

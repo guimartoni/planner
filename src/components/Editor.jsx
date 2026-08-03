@@ -196,6 +196,19 @@ export default function Editor({
               }}
               className="border rounded-md px-1.5 py-0.5 text-xs outline-none" style={{ borderColor: C.line }} />
           </label>
+          {body.blocks && body.blocks.some((x) => x.type === "consolidado") && (
+            <label className="flex items-center gap-1" style={{ color: "#4B5563" }}>
+              · mês vigente:
+              <input type="month"
+                value={(() => { const m = (noteMeta.mes || (noteMeta.createdAt || "").slice(3)).match(/^(\d{2})\/(\d{4})$/); return m ? `${m[2]}-${m[1]}` : ""; })()}
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const [y, mo] = e.target.value.split("-");
+                  onMeta({ mes: `${mo}/${y}` });
+                }}
+                className="border rounded-md px-1.5 py-0.5 text-xs outline-none" style={{ borderColor: C.line }} />
+            </label>
+          )}
           {tplInfo.prevDate
             ? <span> · comparará com <b>{tplInfo.prevDate}</b></span>
             : <span> · primeira semana (sem comparativo)</span>}

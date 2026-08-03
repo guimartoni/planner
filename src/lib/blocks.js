@@ -23,8 +23,27 @@ export const MIA_BLOCKS = () => ([
   { id: uid(), type: "table", title: "🤖 MIA — PRÓXIMOS PASSOS", cols: ["Próximo passo", "Data estimada"], rows: [] },
 ]);
 
+/* Consolidado do mês (Inbound): números somados de todos os FUPs do mês
+   marcado no cabeçalho da página; recalculado sozinho ao abrir/editar. */
+export const CONSOLIDADO_BLOCK = () => (
+  { id: uid(), type: "consolidado", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
+);
+
+/* Migração: divide "REUNIÕES DA SEMANA" em agendadas + realizadas,
+   preservando o valor já digitado como "realizadas". */
+export function upgradeReunioes(blocks) {
+  const i = (blocks || []).findIndex((b) => b.type === "metric" && /REUNIÕES DA SEMANA/i.test(b.title || ""));
+  if (i < 0) return blocks;
+  const out = [...blocks];
+  out[i] = { ...out[i], title: "🤝 REUNIÕES REALIZADAS" };
+  out.splice(i, 0, { id: uid(), type: "metric", title: "📅 REUNIÕES AGENDADAS", value: "" });
+  return out;
+}
+
 export const INBOUND_BLOCKS = () => ([
-  { id: uid(), type: "metric", title: "🤝 REUNIÕES DA SEMANA", value: "" },
+  CONSOLIDADO_BLOCK(),
+  { id: uid(), type: "metric", title: "📅 REUNIÕES AGENDADAS", value: "" },
+  { id: uid(), type: "metric", title: "🤝 REUNIÕES REALIZADAS", value: "" },
   { id: uid(), type: "metric", title: "📥 LEADS INBOUND", value: "" },
   { id: uid(), type: "metric", title: "🔁 LEADS REMARKETING", value: "" },
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },

@@ -91,6 +91,12 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
           decisoes.push(`${t}: sem informações${obs}`);
         }
       }
+      if (b.type === "consolidado") {
+        const v = b.vals || {};
+        if (v.reunioes || v.leadsIn || v.leadsRem || v.aprovados || v.ressalvados || v.reprovados) {
+          decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${v.reunioes || 0} reuniões realizadas, ${v.leadsIn || 0} leads inbound, ${v.leadsRem || 0} leads remarketing; SQL aprovados ${fmtN(v.aprovados || 0)}M, ressalvados ${fmtN(v.ressalvados || 0)}M, reprovados ${fmtN(v.reprovados || 0)}M`);
+        }
+      }
       if (b.type === "fup") {
         const tt = `${t}${b.date ? ` (${b.date})` : ""}`;
         if ((b.text || "").trim()) {

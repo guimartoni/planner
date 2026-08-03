@@ -250,8 +250,13 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
     if (/observa|pend|próximo|passo|tema|assunto|coment|previs/i.test(c)) return { flex: "1 1 170px", minWidth: 140 };
     return { width: 130, flexShrink: 0 };
   };
+  /* Soma da coluna de volume (R$ M) direto no título */
+  const numV = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
+  const fmtV = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
+  const volCi = (b.cols || []).findIndex((c) => /volume|valor|\(m\)/i.test(c));
+  const volSum = volCi >= 0 ? rows.reduce((a, r) => a + numV(r[volCi]), 0) : 0;
   return (
-    <BlockCard title={`${b.title} (${rows.length})`} hint={b.hint}>
+    <BlockCard title={`${b.title} (${rows.length})${volCi >= 0 && volSum ? ` — total R$ ${fmtV(volSum)}M` : ""}`} hint={b.hint}>
       <div className="overflow-x-auto">
         <div className="flex flex-col gap-1" style={{ minWidth: "fit-content" }}>
           <div className="flex gap-1.5 pl-6 pr-6">
@@ -366,6 +371,35 @@ function TextBlock({ b, onChange, users, sections }) {
   );
 }
 
+/* Consolidado do mês (Inbound): números somados de todos os FUPs do mês */
+function ConsolidadoBlock({ b }) {
+  const fmtV = (n) => String(Math.round((n || 0) * 10) / 10).replace(".", ",");
+  const v = b.vals || {};
+  const items = [
+    ["🤝 Reuniões realizadas", v.reunioes, false],
+    ["📥 Leads inbound", v.leadsIn, false],
+    ["🔁 Leads remarketing", v.leadsRem, false],
+    ["✅ SQL aprovados", v.aprovados, true],
+    ["⚠️ SQL ressalvados", v.ressalvados, true],
+    ["❌ SQL reprovados", v.reprovados, true],
+  ];
+  return (
+    <BlockCard title={`${b.title}${b.mes ? ` — ${b.mes}` : ""}`}
+      hint="Somado automaticamente de todos os FUPs de Inbound do mês marcado no cabeçalho da página">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+        {items.map(([label, val, money]) => (
+          <div key={label} className="rounded-lg border px-3 py-2" style={{ borderColor: "#E3E5DE", background: "#fff" }}>
+            <p className="text-xs" style={{ color: "#6B7280" }}>{label}</p>
+            <p className="text-xl font-semibold" style={{ color: C.stamp }}>
+              {money ? `R$ ${fmtV(val)}M` : (val || 0)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </BlockCard>
+  );
+}
+
 /* FUP de segunda com o Murilo — data da reunião + tema geral/outros assuntos */
 function FupBlock({ b, onChange, users, sections }) {
   return (
@@ -435,6 +469,7 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
           onPromote={promoteTargets(b) ? (ri) => promoteRow(i, ri) : null} promoteLabel={(promoteTargets(b) || {}).label} />;
         if (b.type === "sql") return <SqlBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "fup") return <FupBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "consolidado") return <ConsolidadoBlock key={b.id} b={b} />;
         return <TextBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
       })}
     </div>
