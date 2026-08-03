@@ -91,6 +91,17 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
           decisoes.push(`${t}: sem informações${obs}`);
         }
       }
+      if (b.type === "fup") {
+        const tt = `${t}${b.date ? ` (${b.date})` : ""}`;
+        if ((b.text || "").trim()) {
+          (b.text || "").split("\n").map((l) => l.trim()).filter(Boolean).forEach((l) => {
+            const semTask = !users.some((u) => l.toLowerCase().includes("@" + u.name.toLowerCase()));
+            if (semTask) decisoes.push(`${tt}: ${l.replace(/\*/g, "").trim()}`);
+          });
+        } else {
+          decisoes.push(`${tt}: sem informações${obs}`);
+        }
+      }
       if (b.type === "text") {
         if ((b.text || "").trim()) {
           (b.text || "").split("\n").map((l) => l.trim()).filter(Boolean).forEach((l) => {

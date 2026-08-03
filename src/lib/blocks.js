@@ -1,5 +1,10 @@
 import { uid } from "./util.js";
 
+/* Bloco do FUP de segunda com o Murilo — data + tema geral/outros assuntos */
+export const FUP_MURILO_BLOCK = () => (
+  { id: uid(), type: "fup", title: "🤝 FUP MURILO", date: "", text: "" }
+);
+
 export const FARMING_BLOCKS = () => ([
   { id: uid(), type: "list", title: "📍 VISITAS REALIZADAS NA SEMANA", rows: [] },
   { id: uid(), type: "table", title: "📅 VISITAS AGENDADAS", cols: ["Incorporadora", "Data", "Cidade/UF"], rows: [] },
@@ -9,6 +14,7 @@ export const FARMING_BLOCKS = () => ([
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
+  FUP_MURILO_BLOCK(),
 ]);
 
 export const INBOUND_BLOCKS = () => ([

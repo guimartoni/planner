@@ -54,6 +54,7 @@ export function blocksToText(blocks) {
     if (b.type === "metric") base = `${b.title}: ${b.value || "?"}`;
     else if (b.type === "check") base = `${b.title}: ${b.checked ? "Realizado ✔" : "Não realizado ✖"}`;
     else if (b.type === "text") base = `${b.title}:\n${b.text || ""}`;
+    else if (b.type === "fup") base = `${b.title}${b.date ? ` — ${b.date}` : ""}:\n${b.text || ""}`;
     else if (b.type === "list") base = `${b.title}:\n${(b.rows || []).map((r, i) => `${i + 1}. ${r}`).join("\n")}`;
     else if (b.type === "table") base = `${b.title} (${(b.cols || []).join(" · ")}):\n${(b.rows || []).map((r) => "- " + r.filter(Boolean).join(" · ")).join("\n")}`;
     else if (b.type === "sql") {

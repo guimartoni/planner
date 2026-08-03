@@ -333,6 +333,31 @@ function TextBlock({ b, onChange, users, sections }) {
   );
 }
 
+/* FUP de segunda com o Murilo — data da reunião + tema geral/outros assuntos */
+function FupBlock({ b, onChange, users, sections }) {
+  return (
+    <BlockCard
+      title={b.title}
+      extra={
+        <label className="flex items-center gap-1.5 text-xs" style={{ color: "#6B7280" }}>
+          data:
+          <input value={b.date || ""} onChange={(e) => onChange({ ...b, date: e.target.value })}
+            placeholder="DD/MM/AAAA" className="border rounded-lg px-2 py-1 text-xs outline-none w-24" style={cellStyle} />
+        </label>
+      }
+      hint="Comandos: @responsável · # prazo · !subtema · * importante">
+      <SmartTextarea
+        value={b.text || ""}
+        onChange={(v) => onChange({ ...b, text: v })}
+        users={users} sections={sections}
+        placeholder="Tema geral / outros assuntos do FUP com o Murilo…"
+        minH={110}
+      />
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
+    </BlockCard>
+  );
+}
+
 export function BlocksEditor({ blocks, onChange, users, sections }) {
   const patch = (i, nb) => onChange(blocks.map((b, j) => (j === i ? nb : b)));
 
@@ -376,6 +401,7 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
         if (b.type === "table") return <TableBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections}
           onPromote={promoteTargets(b) ? (ri) => promoteRow(i, ri) : null} promoteLabel={(promoteTargets(b) || {}).label} />;
         if (b.type === "sql") return <SqlBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "fup") return <FupBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         return <TextBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
       })}
     </div>

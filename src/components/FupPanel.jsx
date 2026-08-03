@@ -185,6 +185,17 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     );
   };
 
+  const renderFup = (b) => {
+    const vazio = !(b.text || "").trim();
+    if (vazio && !(b.comment || "").trim() && !showEmpty) return null;
+    return (
+      <Card key={b.id} title={b.title} sub={b.date || null}>
+        {vazio ? <SemInfo /> : <p className="text-sm whitespace-pre-wrap leading-6" style={{ color: D.sub }}>{b.text}</p>}
+        <Comment b={b} />
+      </Card>
+    );
+  };
+
   return (
     <div className="rounded-2xl p-4" style={{ background: D.bg }}>
       {header && (
@@ -219,6 +230,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
           if (b.type === "metric") return renderMetric(b);
           if (b.type === "sql") return renderSql(b);
           if (b.type === "text") return renderText(b);
+          if (b.type === "fup") return renderFup(b);
           return null;
         })}
       </div>
