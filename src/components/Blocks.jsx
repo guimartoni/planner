@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { C } from "../lib/util.js";
 import Avatar from "./Avatar.jsx";
@@ -7,6 +7,7 @@ import Avatar from "./Avatar.jsx";
    blocos de texto dos templates estruturados. */
 export function SmartTextarea({ value, onChange, users, sections, placeholder, minH, small }) {
   const taRef = useRef(null);
+  const bgRef = useRef(null);
   const [mentionQ, setMentionQ] = useState(null);
   const [tagQ, setTagQ] = useState(null);
   const [datePick, setDatePick] = useState(false);
@@ -23,6 +24,22 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
     const y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear();
     return `${String(dd).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y}`;
   };
+
+  /* Camada colorida atrás do texto: @responsável, !subtema, 📅 prazo e * */
+  const escHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const highlighted = useMemo(() => {
+    let t = escHtml(value || "");
+    [...(users || [])].sort((a, b) => b.name.length - a.name.length).forEach((u) => {
+      t = t.split("@" + escHtml(u.name)).join(`<span style="background:${C.mentionSoft};color:${C.mention};border-radius:4px">@${escHtml(u.name)}</span>`);
+    });
+    [...(sections || [])].sort((a, b) => b.name.length - a.name.length).forEach((s) => {
+      t = t.split("!" + escHtml(s.name)).join(`<span style="background:${C.stampSoft};color:${C.stamp};border-radius:4px">!${escHtml(s.name)}</span>`);
+    });
+    t = t.replace(/📅\s*\d{2}\/\d{2}\/\d{4}/g, (m) => `<span style="background:${C.dateSoft};color:${C.date};border-radius:4px">${m}</span>`);
+    t = t.replace(/\*/g, `<span style="color:#EF9F27;font-weight:700">*</span>`);
+    if (t.endsWith("\n")) t += "​";
+    return t;
+  }, [value, users, sections]); // eslint-disable-line
 
   const handleChange = (e) => {
     const text = e.target.value;
@@ -53,12 +70,23 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
 
   const filtered = (users || []).filter((u) => (mentionQ === null ? false : u.name.toLowerCase().includes(mentionQ.toLowerCase())));
 
+  const inkColor = small ? "#6B7280" : "#1F2937";
+  const sizeCls = small ? "text-xs leading-5" : "text-sm leading-7";
+
   return (
     <div className="relative">
+      <div
+        ref={bgRef}
+        aria-hidden
+        className={`${sizeCls} absolute inset-0 whitespace-pre-wrap break-words overflow-hidden pointer-events-none`}
+        style={{ color: inkColor }}
+        dangerouslySetInnerHTML={{ __html: value ? highlighted : "" }}
+      />
       <textarea
         ref={taRef}
         value={value || ""}
         onChange={handleChange}
+        onScroll={(e) => { if (bgRef.current) bgRef.current.scrollTop = e.target.scrollTop; }}
         onKeyDown={(e) => {
           if (datePick && (e.key === " " || e.key === "Enter")) {
             const parsed = parseDateQ(dateQ);
@@ -66,10 +94,8 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
           }
         }}
         placeholder={placeholder}
-        className={small
-          ? "w-full outline-none resize-none text-xs leading-5 bg-transparent"
-          : "w-full outline-none resize-none text-sm leading-7 bg-transparent"}
-        style={{ color: small ? "#6B7280" : "#1F2937", minHeight: minH || (small ? 24 : 120) }}
+        className={`relative w-full outline-none resize-none bg-transparent ${sizeCls}`}
+        style={{ color: "transparent", caretColor: inkColor, minHeight: minH || (small ? 24 : 120) }}
       />
       {mentionQ !== null && (
         <div className="absolute left-2 top-8 z-20 rounded-xl border shadow-lg overflow-hidden w-64" style={{ background: "#fff", borderColor: C.line }}>
