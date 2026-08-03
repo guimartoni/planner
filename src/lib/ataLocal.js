@@ -1,5 +1,6 @@
 import { dateKeyBR, todayBR } from "./util.js";
 import { bodyText, parseDraftTasks } from "./data.js";
+import { consolidadoEff } from "./blocks.js";
 
 /* ------------------------------------------------------------------ */
 /* Gerador LOCAL de atas — custo zero, instantâneo, sem IA.            */
@@ -101,9 +102,9 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
         }
       }
       if (b.type === "consolidado") {
-        const v = b.vals || {};
-        if (v.reunioes || v.leadsIn || v.leadsRem || v.aprovados || v.ressalvados || v.reprovados) {
-          decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${v.reunioes || 0} reuniões realizadas, ${v.leadsIn || 0} leads inbound, ${v.leadsRem || 0} leads remarketing; SQL aprovados ${fmtN(v.aprovados || 0)}M, ressalvados ${fmtN(v.ressalvados || 0)}M, reprovados ${fmtN(v.reprovados || 0)}M`);
+        const e = (k) => consolidadoEff(b, k);
+        if (e("reunioes") || e("leadsIn") || e("leadsRem") || e("aprovados") || e("ressalvados") || e("reprovados")) {
+          decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("reunioes")} reuniões realizadas, ${e("leadsIn")} leads inbound, ${e("leadsRem")} leads remarketing; SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
         }
       }
       if (b.type === "fup") {

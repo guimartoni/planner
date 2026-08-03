@@ -29,6 +29,17 @@ export const CONSOLIDADO_BLOCK = () => (
   { id: uid(), type: "consolidado", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
 );
 
+/* Valor efetivo de um item do consolidado: o manual (✏️), se preenchido,
+   senão o somado automaticamente. */
+export const consolidadoEff = (b, k) => {
+  const man = (b && b.manual) || {};
+  if (man[k] !== undefined && String(man[k]).trim() !== "") {
+    const m = String(man[k]).replace(",", ".").match(/[\d.]+/);
+    return m ? parseFloat(m[0]) : 0;
+  }
+  return ((b && b.vals) || {})[k] || 0;
+};
+
 /* Bloco duplo de reuniões: agendadas e realizadas lado a lado */
 export const REUNIOES_BLOCK = () => (
   { id: uid(), type: "reunioes", title: "🤝 REUNIÕES DA SEMANA", agendadas: "", realizadas: "" }

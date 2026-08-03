@@ -1,4 +1,5 @@
 import { uid, todayBR } from "./util.js";
+import { consolidadoEff } from "./blocks.js";
 
 /* Funde dois estados do app sem perder criações de nenhum lado.
    Regra: união por id (páginas, tarefas, pessoas, modelos, recorrentes);
@@ -60,8 +61,8 @@ export function blocksToText(blocks) {
     else if (b.type === "text") base = `${b.title}:\n${b.text || ""}`;
     else if (b.type === "fup") base = `${b.title}${b.date ? ` — ${b.date}` : ""}:\n${b.text || ""}`;
     else if (b.type === "consolidado") {
-      const v = b.vals || {};
-      base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${v.reunioes || 0}; leads inbound ${v.leadsIn || 0}; leads remarketing ${v.leadsRem || 0}; SQL aprovados ${v.aprovados || 0}M; ressalvados ${v.ressalvados || 0}M; reprovados ${v.reprovados || 0}M`;
+      const e = (k) => consolidadoEff(b, k);
+      base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
     }
     else if (b.type === "list") base = `${b.title}:\n${(b.rows || []).map((r, i) => `${i + 1}. ${r}`).join("\n")}`;
     else if (b.type === "table") base = `${b.title} (${(b.cols || []).join(" · ")}):\n${(b.rows || []).map((r) => "- " + r.filter(Boolean).join(" · ")).join("\n")}`;

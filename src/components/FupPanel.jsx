@@ -1,3 +1,5 @@
+import { consolidadoEff } from "../lib/blocks.js";
+
 /* Painel visual do FUP — renderiza TODOS os blocos preenchidos, na ordem
    do template, com deltas vs semana anterior. Funciona para Farming,
    Inbound, Parcerias e qualquer template futuro. */
@@ -201,14 +203,13 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   };
 
   const renderConsolidado = (b) => {
-    const v = b.vals || {};
     const items = [
-      ["Reuniões realizadas", v.reunioes, false],
-      ["Leads inbound", v.leadsIn, false],
-      ["Leads remarketing", v.leadsRem, false],
-      ["SQL aprovados", v.aprovados, true],
-      ["SQL ressalvados", v.ressalvados, true],
-      ["SQL reprovados", v.reprovados, true],
+      ["Reuniões realizadas", consolidadoEff(b, "reunioes"), false],
+      ["Leads inbound", consolidadoEff(b, "leadsIn"), false],
+      ["Leads remarketing", consolidadoEff(b, "leadsRem"), false],
+      ["SQL aprovados", consolidadoEff(b, "aprovados"), true],
+      ["SQL ressalvados", consolidadoEff(b, "ressalvados"), true],
+      ["SQL reprovados", consolidadoEff(b, "reprovados"), true],
     ];
     if (!items.some(([, val]) => val) && !showEmpty) return null;
     return (

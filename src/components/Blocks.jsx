@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { C } from "../lib/util.js";
+import { consolidadoEff } from "../lib/blocks.js";
 import Avatar from "./Avatar.jsx";
 
 /* Textarea com os comandos @responsável / # prazo / !subtema — usada nos
@@ -417,28 +418,56 @@ function TextBlock({ b, onChange, users, sections }) {
   );
 }
 
-/* Consolidado do mês (Inbound): números somados de todos os FUPs do mês */
-function ConsolidadoBlock({ b }) {
+/* Consolidado do mês (Inbound): números somados de todos os FUPs do mês.
+   Cada item pode ser trocado para manual (✏️) e voltar ao automático (🔄). */
+function ConsolidadoBlock({ b, onChange }) {
   const fmtV = (n) => String(Math.round((n || 0) * 10) / 10).replace(".", ",");
-  const v = b.vals || {};
+  const manual = b.manual || {};
+  const isMan = (k) => manual[k] !== undefined;
   const items = [
-    ["🤝 Reuniões realizadas", v.reunioes, false],
-    ["📥 Leads inbound", v.leadsIn, false],
-    ["🔁 Leads remarketing", v.leadsRem, false],
-    ["✅ SQL aprovados", v.aprovados, true],
-    ["⚠️ SQL ressalvados", v.ressalvados, true],
-    ["❌ SQL reprovados", v.reprovados, true],
+    ["reunioes", "🤝 Reuniões realizadas", false],
+    ["leadsIn", "📥 Leads inbound", false],
+    ["leadsRem", "🔁 Leads remarketing", false],
+    ["aprovados", "✅ SQL aprovados", true],
+    ["ressalvados", "⚠️ SQL ressalvados", true],
+    ["reprovados", "❌ SQL reprovados", true],
   ];
+  const toggle = (k) => {
+    if (isMan(k)) {
+      const { [k]: _drop, ...rest } = manual;
+      onChange({ ...b, manual: rest });
+    } else {
+      onChange({ ...b, manual: { ...manual, [k]: String((b.vals || {})[k] || 0).replace(".", ",") } });
+    }
+  };
   return (
     <BlockCard title={`${b.title}${b.mes ? ` — ${b.mes}` : ""}`}
-      hint="Somado automaticamente de todos os FUPs de Inbound do mês marcado no cabeçalho da página">
+      hint="Somado automaticamente dos FUPs de Inbound do mês marcado no cabeçalho · toque em 🔄/✏️ para alternar entre automático e manual">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        {items.map(([label, val, money]) => (
-          <div key={label} className="rounded-lg border px-3 py-2" style={{ borderColor: "#E3E5DE", background: "#fff" }}>
-            <p className="text-xs" style={{ color: "#6B7280" }}>{label}</p>
-            <p className="text-xl font-semibold" style={{ color: C.stamp }}>
-              {money ? `R$ ${fmtV(val)}M` : (val || 0)}
-            </p>
+        {items.map(([k, label, money]) => (
+          <div key={k} className="rounded-lg border px-3 py-2" style={{ borderColor: "#E3E5DE", background: "#fff" }}>
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-xs" style={{ color: "#6B7280" }}>{label}</p>
+              <button onClick={() => toggle(k)}
+                className="text-xs px-1.5 py-0.5 rounded-full shrink-0"
+                title={isMan(k) ? "Valor manual — toque para voltar ao automático" : "Somado automaticamente — toque para editar à mão"}
+                style={isMan(k) ? { background: C.dateSoft, color: C.date } : { background: C.stampSoft, color: C.stamp }}>
+                {isMan(k) ? "✏️ manual" : "🔄 auto"}
+              </button>
+            </div>
+            {isMan(k) ? (
+              <input
+                value={manual[k]}
+                onChange={(e) => onChange({ ...b, manual: { ...manual, [k]: e.target.value } })}
+                inputMode="decimal" placeholder="0"
+                className="w-24 border rounded-lg px-2 py-1 text-xl font-semibold outline-none mt-0.5"
+                style={{ borderColor: C.date, background: "#fff", color: C.stamp }}
+              />
+            ) : (
+              <p className="text-xl font-semibold" style={{ color: C.stamp }}>
+                {money ? `R$ ${fmtV(consolidadoEff(b, k))}M` : consolidadoEff(b, k)}
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -516,7 +545,7 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
           onPromote={promoteTargets(b) ? (ri) => promoteRow(i, ri) : null} promoteLabel={(promoteTargets(b) || {}).label} />;
         if (b.type === "sql") return <SqlBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "fup") return <FupBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
-        if (b.type === "consolidado") return <ConsolidadoBlock key={b.id} b={b} />;
+        if (b.type === "consolidado") return <ConsolidadoBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
         return <TextBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
       })}
     </div>
