@@ -956,7 +956,10 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       const q = metaRef.current?.iaQueue || [];
       if (!q.length) return;
       for (const item of q) {
-        if (Date.now() - (item.criadoEm || 0) > 30 * 60 * 1000) {
+        // resumo de reunião pode chegar dias depois (PC desligado na hora);
+        // os demais tipos expiram em 30 minutos
+        const limite = item.tipo === "resumo-reuniao" ? 7 * 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
+        if (Date.now() - (item.criadoEm || 0) > limite) {
           setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
           const aviso = "A fila da IA não respondeu em 30 minutos — confira se a tarefa \"Planner Fila IA\" está ativa no computador e tente de novo.";
           if (item.tipo === "resumo") setMeta((m) => ({ ...m, weeklyResumo: { text: aviso, em: Date.now() } }));
