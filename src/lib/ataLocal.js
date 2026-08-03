@@ -171,10 +171,36 @@ export function resumoTranscricaoLocal(t) {
     .map((f) => f.replace(/\s+/g, " ").trim())
     .filter((f) => f.length > 25);
   if (!frases.length) return "";
-  const kw = /decid|combinad|prazo|respons|próxim|semana|segunda|sexta|valor|r\$|milh|mil |contrat|aprovad|reprovad|ressalv|pendên|acord|definid|entreg|visit|comitê|cliente|parceir|agendad|fechad|proposta|reuni/i;
-  const chave = frases.filter((f) => kw.test(f));
-  const base = (chave.length >= 3 ? chave : frases).slice(0, 10);
-  return base.map((f) => "• " + f).join("\n");
+
+  /* Classifica cada frase na primeira categoria que combinar */
+  const CATS = [
+    ["dec", /decid|combinad|acordad|aprovad|reprovad|ressalv|fechad|definid|ficou acertado|ficou definido|batemos o martelo/i],
+    ["pend", /pendent|pendênc|falta |faltou|aguardand|depend|em aberto|sem resposta|travad|não respondeu/i],
+    ["next", /próxim|semana que vem|até (segunda|terça|quarta|quinta|sexta)|vou |vamos |precisa|agendar|enviar|mandar|marcar|apresentar|retornar|cobrar|prazo|follow|fup/i],
+    ["num", /r\$|\d+\s*(milh|mil\b|%)|\d+[.,]\d+|volume|valor|opera[çc][õo]/i],
+  ];
+  const buckets = { dec: [], pend: [], next: [], num: [], rest: [] };
+  frases.forEach((f) => {
+    const cat = CATS.find(([, re]) => re.test(f));
+    buckets[cat ? cat[0] : "rest"].push(f);
+  });
+
+  /* Assuntos gerais: as frases mais "cheias" que não caíram nas outras seções */
+  const maiores = [...buckets.rest].sort((a, b) => b.length - a.length).slice(0, 5);
+  const assuntos = buckets.rest.filter((f) => maiores.includes(f));
+
+  const bloco = (titulo, arr, n) =>
+    arr.length ? `${titulo}\n${arr.slice(0, n).map((f) => "• " + f).join("\n")}` : null;
+
+  const partes = [
+    bloco("🗣 ASSUNTOS TRATADOS", assuntos, 5),
+    bloco("✅ DECISÕES E ACORDOS", buckets.dec, 6),
+    bloco("💰 NÚMEROS E VALORES CITADOS", buckets.num, 6),
+    bloco("📌 PRÓXIMOS PASSOS", buckets.next, 6),
+    bloco("⚠️ PENDÊNCIAS", buckets.pend, 5),
+  ].filter(Boolean);
+
+  return partes.join("\n\n");
 }
 
 /* ------------------------------------------------------------------ */
