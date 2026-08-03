@@ -162,6 +162,22 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Resumo LOCAL de transcrição de reunião — custo zero, sem IA.        */
+/* Seleciona as frases com cara de decisão/número/próximo passo.       */
+/* ------------------------------------------------------------------ */
+export function resumoTranscricaoLocal(t) {
+  const frases = (t || "")
+    .split(/\n+|(?<=[.!?…])\s+/)
+    .map((f) => f.replace(/\s+/g, " ").trim())
+    .filter((f) => f.length > 25);
+  if (!frases.length) return "";
+  const kw = /decid|combinad|prazo|respons|próxim|semana|segunda|sexta|valor|r\$|milh|mil |contrat|aprovad|reprovad|ressalv|pendên|acord|definid|entreg|visit|comitê|cliente|parceir|agendad|fechad|proposta|reuni/i;
+  const chave = frases.filter((f) => kw.test(f));
+  const base = (chave.length >= 3 ? chave : frases).slice(0, 10);
+  return base.map((f) => "• " + f).join("\n");
+}
+
+/* ------------------------------------------------------------------ */
 /* Resumo semanal LOCAL — formatado para WhatsApp, custo zero.         */
 /* ------------------------------------------------------------------ */
 export function resumoSemanalLocal({ meta, loadBody }) {

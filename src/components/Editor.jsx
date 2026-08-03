@@ -7,12 +7,14 @@ import { BlocksEditor } from "./Blocks.jsx";
 import FupPanel from "./FupPanel.jsx";
 import PageImages from "./PageImages.jsx";
 import PageFiles from "./PageFiles.jsx";
+import Recorder from "./Recorder.jsx";
 
 export default function Editor({
   noteMeta, body, users, sections, prevBlocks, tplInfo, tplSiblings,
   onGoNote, onSaveTemplate, onTitle, onMeta, onBody, saveState,
   onConclude, iaState, onImage, onRemoveImage, imgBusy,
   onFile, onOpenFile, onRemoveFile, fileBusy,
+  onRecording, recBusy,
 }) {
   const [tplSaved, setTplSaved] = useState(false);
   const [viewMode, setViewMode] = useState("edit"); // edit | panel
@@ -214,6 +216,7 @@ export default function Editor({
             {tplSaved ? "✓ Modelo salvo" : "Salvar como modelo"}
           </button>
         )}
+        <Recorder onFinish={onRecording} busy={recBusy} />
         <button onClick={() => anexoRef.current && anexoRef.current.click()}
           className="px-3 py-1.5 rounded-lg text-sm" style={{ color: "#4B5563", background: "#E2E5E9" }}
           title="Anexar arquivo (PDF, planilha etc.) — fica na pasta planner-arquivos do OneDrive">
@@ -419,6 +422,19 @@ export default function Editor({
 
       <PageFiles files={body.files} busy={fileBusy}
         onOpen={onOpenFile} onRemove={(id) => onRemoveFile && onRemoveFile(id)} />
+
+      {!body.blocks && body.meetingSummary != null && (
+        <div className="mt-3 rounded-xl border shadow-sm" style={{ borderColor: C.line, background: C.paper }}>
+          <div className="px-4 pt-3 pb-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: C.stamp }}>🎙️ Resumo da reunião</p>
+          </div>
+          <textarea
+            value={body.meetingSummary || ""}
+            onChange={(e) => onBody({ meetingSummary: e.target.value })}
+            className="w-full p-4 outline-none resize-none bg-transparent text-sm leading-6"
+            style={{ color: "#374151", minHeight: 100 }} />
+        </div>
+      )}
 
       {(body.routed || []).length > 0 && (
         <p className="mt-3 text-xs flex items-center gap-1" style={{ color: C.stamp }}>

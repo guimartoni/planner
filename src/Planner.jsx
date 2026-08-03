@@ -8,7 +8,7 @@ import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, u
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
-import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
+import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
 import { deleteFile, ensureFolder, getDownloadUrl, readJsonFile, uploadBinaryFile, uploadLargeFile } from "./onedrive.js";
 import { imgPath, prepareImage } from "./components/PageImages.jsx";
@@ -301,6 +301,71 @@ export default function Planner() {
     } catch (e) {
       window.alert("Não consegui abrir o arquivo — verifique a internet.");
     }
+  };
+
+  /* ---------- gravação de reunião: áudio + transcrição + resumo ---------- */
+  const [recBusy, setRecBusy] = useState(false);
+
+  const finishRecording = async ({ blob, transcript }) => {
+    const nId = noteIdRef.current;
+    if (!nId) return;
+    setRecBusy(true);
+    try {
+      await ensureFolder("planner-arquivos");
+      const dataStr = todayBR().replace(/\//g, "-");
+      const novos = [];
+      if (blob && blob.size) {
+        const aRef = { id: uid(), name: `reuniao-${dataStr}-audio.webm`, size: blob.size };
+        if (blob.size <= 4 * 1024 * 1024) await uploadBinaryFile(filePath(aRef), blob, blob.type || "audio/webm");
+        else await uploadLargeFile(filePath(aRef), blob);
+        novos.push(aRef);
+      }
+      if (transcript) {
+        const tBlob = new Blob([transcript], { type: "text/plain" });
+        const tRef = { id: uid(), name: `reuniao-${dataStr}-transcricao.txt`, size: tBlob.size };
+        await uploadBinaryFile(filePath(tRef), tBlob, "text/plain");
+        novos.push(tRef);
+      }
+      // resumo: IA se houver chave (centavos), senão resumo local gratuito
+      let resumo = null;
+      if (transcript && transcript.length > 60) {
+        if (getAnthropicKey()) {
+          try {
+            const r = await callDirect(
+              `Você resume reuniões presenciais de uma empresa brasileira (Finamob). Resuma a transcrição abaixo em português claro, em até 10 frases curtas (uma por linha, começando com "• "), destacando decisões, números citados e próximos passos. Ignore conversa fiada.\n\nTRANSCRIÇÃO:\n${transcript.slice(0, 150000)}`,
+              TEXT_SCHEMA
+            );
+            resumo = r && r.texto;
+          } catch (e) { /* cai no resumo local */ }
+        }
+        if (!resumo) resumo = resumoTranscricaoLocal(transcript);
+      }
+      const aplicar = (b) => {
+        const next = {
+          transcript: [b.transcript, transcript].filter(Boolean).join("\n\n"),
+          files: [...((b && b.files) || []), ...novos],
+        };
+        if (resumo) {
+          if (b.blocks) {
+            const i = b.blocks.findIndex((x) => /RESUMO DA REUNIÃO/i.test(x.title || ""));
+            next.blocks = i >= 0
+              ? b.blocks.map((x, j) => (j === i ? { ...x, text: [x.text, resumo].filter(Boolean).join("\n\n") } : x))
+              : [...b.blocks, { id: uid(), type: "text", title: "🎙️ RESUMO DA REUNIÃO", text: resumo }];
+          } else {
+            next.meetingSummary = [b.meetingSummary, resumo].filter(Boolean).join("\n\n");
+          }
+        }
+        return next;
+      };
+      if (noteIdRef.current === nId) patchBody(aplicar);
+      else {
+        const b = loadBody(nId) || { content: "", transcript: "", structured: null };
+        saveBody(nId, { ...b, ...aplicar(b) });
+      }
+    } catch (e) {
+      window.alert("Não consegui salvar a gravação — verifique a internet. A transcrição pode ter se perdido.");
+    }
+    setRecBusy(false);
   };
 
   const removeFileFromNote = (id) => {
@@ -787,8 +852,12 @@ export default function Planner() {
         (tpl.blocksDef || []).forEach((tb) => {
           if (!blocks.some((b) => b.title === tb.title)) blocks.push({ ...JSON.parse(JSON.stringify(tb)), id: uid() });
         });
-        // FUP Murilo é uma reunião nova a cada semana — começa em branco
-        blocks = blocks.map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" } : b));
+        // FUP Murilo e resumo de gravação são de cada semana — começam em branco
+        blocks = blocks.map((b) => {
+          if (b.type === "fup") return { ...b, date: "", text: "", comment: "" };
+          if (/RESUMO DA REUNIÃO/i.test(b.title || "")) return { ...b, text: "", comment: "" };
+          return b;
+        });
       }
       else if (pb && pb.content) content = pb.content;
       participants = prev.participants || "";
@@ -1515,6 +1584,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               iaState={iaState}
               onImage={addImageToNote} onRemoveImage={removeImageFromNote} imgBusy={imgBusy > 0}
               onFile={addFileToNote} onOpenFile={openFileFromNote} onRemoveFile={removeFileFromNote} fileBusy={fileBusy > 0}
+              onRecording={finishRecording} recBusy={recBusy}
             />
           )}
         </main>

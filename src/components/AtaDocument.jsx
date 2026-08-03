@@ -179,6 +179,11 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
             <PageFiles files={body.files} readOnly onOpen={onOpenFile} />
           </Sec>
         )}
+        {body.meetingSummary && (
+          <Sec label="🎙️ Resumo da reunião">
+            <p className="text-sm leading-7 whitespace-pre-wrap" style={{ color: "#374151" }}>{body.meetingSummary}</p>
+          </Sec>
+        )}
         {tasks.length > 0 && (
           <Sec label="Ações e responsáveis">
             <div className="flex flex-col gap-1.5" style={{ fontFamily: "system-ui, sans-serif" }}>
