@@ -1,0 +1,4 @@
+﻿[03/08 11:19:59] Processando flzfrya9 (tipo: ata)
+[03/08 11:20:35] Resposta gravada para flzfrya9
+[03/08 11:20:35] Processando teste123 (tipo: teste)
+[03/08 11:20:42] Resposta gravada para teste123

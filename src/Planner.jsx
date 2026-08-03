@@ -339,6 +339,27 @@ export default function Planner() {
           } catch (e) { /* cai no resumo local */ }
         }
         if (!resumo) resumo = resumoTranscricaoLocal(transcript);
+        // sem chave: além do resumo local imediato, pede um resumo melhor à fila
+        // (o Claude Code do PC processa pela assinatura, sem custo de API)
+        if (!getAnthropicKey()) {
+          try {
+            const promptIA = `Você resume reuniões presenciais da Finamob (empresa brasileira). Resuma a transcrição abaixo em português claro e organizado nestas seções (pule as que ficarem vazias), cada item começando com "• ":
+🗣 ASSUNTOS TRATADOS
+✅ DECISÕES E ACORDOS
+💰 NÚMEROS E VALORES CITADOS
+📌 PRÓXIMOS PASSOS
+⚠️ PENDÊNCIAS
+
+Ignore conversa fiada. Seja fiel ao que foi dito — não invente.
+
+TRANSCRIÇÃO:
+${transcript.slice(0, 150000)}
+
+Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"o resumo aqui"}`;
+            const qid = await enqueueRequest({ tipo: "resumo-reuniao", noteId: nId, prompt: promptIA });
+            setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id: qid, noteId: nId, tipo: "resumo-reuniao", criadoEm: Date.now() }] }));
+          } catch (e) { /* fica com o resumo local */ }
+        }
       }
       const aplicar = (b) => {
         const next = {
@@ -937,9 +958,10 @@ export default function Planner() {
       for (const item of q) {
         if (Date.now() - (item.criadoEm || 0) > 30 * 60 * 1000) {
           setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
-          const aviso = "A fila da IA não respondeu em 30 minutos — confira se a tarefa do Cowork está ativa e tente de novo.";
+          const aviso = "A fila da IA não respondeu em 30 minutos — confira se a tarefa \"Planner Fila IA\" está ativa no computador e tente de novo.";
           if (item.tipo === "resumo") setMeta((m) => ({ ...m, weeklyResumo: { text: aviso, em: Date.now() } }));
           else if (item.tipo === "acervo") setMeta((m) => ({ ...m, acervoResposta: { pergunta: item.pergunta || "", texto: aviso, em: Date.now() } }));
+          else if (item.tipo === "resumo-reuniao") { /* o resumo local já está na ata — segue sem alarde */ }
           else setIaErr((e) => ({ ...e, [item.noteId]: aviso }));
           continue;
         }
@@ -958,6 +980,24 @@ export default function Planner() {
               iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id),
               acervoResposta: { pergunta: item.pergunta || "", texto: parsed.texto || "", em: Date.now() },
             }));
+          } else if (item.tipo === "resumo-reuniao") {
+            // troca o resumo local pelo resumo feito pelo Claude do PC
+            const b = loadBody(item.noteId);
+            const texto = ((parsed.texto || "") + "").trim();
+            if (b && texto) {
+              const nb2 = { ...b };
+              if (b.blocks) {
+                const i = b.blocks.findIndex((x) => /RESUMO DA REUNIÃO/i.test(x.title || ""));
+                nb2.blocks = i >= 0
+                  ? b.blocks.map((x, j) => (j === i ? { ...x, text: texto } : x))
+                  : [...b.blocks, { id: uid(), type: "text", title: "🎙️ RESUMO DA REUNIÃO", text: texto }];
+              } else {
+                nb2.meetingSummary = texto;
+              }
+              saveBody(item.noteId, nb2);
+              if (noteIdRef.current === item.noteId) setBody(nb2);
+            }
+            setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
           } else {
             applyAta(item.noteId, parsed);
           }
