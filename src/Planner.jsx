@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -57,6 +57,19 @@ function prepareData(data) {
     m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Parcerias", v: 2, blocksDef: PARCERIAS_BLOCKS() }] };
     changed = true;
   }
+  if (!m.templates.some((t) => /outbound/i.test(t.name))) {
+    m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Outbound", v: 2, blocksDef: OUTBOUND_BLOCKS() }] };
+    changed = true;
+  }
+  // Blocos da MIA no modelo Inbound já existente (antes do TEMA GERAL)
+  const iIdx = m.templates.findIndex((t) => t.v === 2 && /inbound/i.test(t.name));
+  if (iIdx >= 0 && !(m.templates[iIdx].blocksDef || []).some((b) => /MIA/i.test(b.title || ""))) {
+    const def = [...(m.templates[iIdx].blocksDef || [])];
+    const pos = def.findIndex((b) => /TEMA GERAL/i.test(b.title || ""));
+    def.splice(pos >= 0 ? pos : def.length, 0, ...MIA_BLOCKS());
+    m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
+    changed = true;
+  }
   // Lixeira: itens com mais de 30 dias são excluídos definitivamente
   const cut = new Date(); cut.setDate(cut.getDate() - 30);
   const cutKey = `${cut.getFullYear()}${String(cut.getMonth() + 1).padStart(2, "0")}${String(cut.getDate()).padStart(2, "0")}`;
@@ -69,7 +82,7 @@ function prepareData(data) {
   }
 
   // FUP Murilo (segundas): garante o bloco no fim dos três modelos de FUP já existentes
-  const semFup = (t) => t.v === 2 && /farming|inbound|parceria/i.test(t.name) && !(t.blocksDef || []).some((b) => b.type === "fup");
+  const semFup = (t) => t.v === 2 && /farming|inbound|outbound|parceria/i.test(t.name) && !(t.blocksDef || []).some((b) => b.type === "fup");
   if (m.templates.some(semFup)) {
     m = { ...m, templates: m.templates.map((t) => (semFup(t) ? { ...t, blocksDef: [...(t.blocksDef || []), FUP_MURILO_BLOCK()] } : t)) };
     changed = true;

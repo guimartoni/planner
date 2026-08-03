@@ -17,10 +17,25 @@ export const FARMING_BLOCKS = () => ([
   FUP_MURILO_BLOCK(),
 ]);
 
+/* Blocos da MIA (assistente de IA do Inbound): ajustes da semana + próximos passos */
+export const MIA_BLOCKS = () => ([
+  { id: uid(), type: "list", title: "🤖 MIA — AJUSTES FEITOS NA SEMANA", rows: [] },
+  { id: uid(), type: "table", title: "🤖 MIA — PRÓXIMOS PASSOS", cols: ["Próximo passo", "Data estimada"], rows: [] },
+]);
+
 export const INBOUND_BLOCKS = () => ([
   { id: uid(), type: "metric", title: "🤝 REUNIÕES DA SEMANA", value: "" },
   { id: uid(), type: "metric", title: "📥 LEADS INBOUND", value: "" },
   { id: uid(), type: "metric", title: "🔁 LEADS REMARKETING", value: "" },
+  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
+  { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
+  ...MIA_BLOCKS(),
+  { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
+  FUP_MURILO_BLOCK(),
+]);
+
+export const OUTBOUND_BLOCKS = () => ([
+  { id: uid(), type: "metric", title: "🤝 REUNIÕES DA SEMANA", value: "" },
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
