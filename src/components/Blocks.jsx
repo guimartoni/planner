@@ -189,6 +189,31 @@ function CheckBlock({ b, onChange, users, sections }) {
   );
 }
 
+/* Reuniões da semana: agendadas e realizadas lado a lado */
+function ReunioesBlock({ b, onChange, users, sections }) {
+  const campo = (key, label, emoji) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-semibold" style={{ color: "#6B7280" }}>{emoji} {label}</span>
+      <input
+        value={b[key] || ""}
+        onChange={(e) => onChange({ ...b, [key]: e.target.value })}
+        placeholder="0" inputMode="numeric"
+        className="w-28 border rounded-lg px-3 py-2 text-2xl font-semibold outline-none"
+        style={{ borderColor: "#E3E5DE", background: "#fff", color: C.stamp }}
+      />
+    </label>
+  );
+  return (
+    <BlockCard title={b.title}>
+      <div className="flex items-end gap-6 flex-wrap">
+        {campo("agendadas", "Agendadas", "📅")}
+        {campo("realizadas", "Realizadas", "🤝")}
+      </div>
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
+    </BlockCard>
+  );
+}
+
 function MetricBlock({ b, onChange, users, sections }) {
   return (
     <BlockCard title={b.title}>
@@ -206,6 +231,20 @@ function MetricBlock({ b, onChange, users, sections }) {
 
 const cellCls = "border rounded-lg px-2 py-1.5 text-xs outline-none w-full";
 const cellStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151" };
+
+/* Campo de data com calendário nativo — grava sempre como DD/MM/AAAA */
+function DateBR({ value, onChange, className, style, ...rest }) {
+  const iso = (() => { const m = (value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; })();
+  return (
+    <input type="date" value={iso}
+      onChange={(e) => {
+        if (!e.target.value) { onChange(""); return; }
+        const [y, mo, d] = e.target.value.split("-");
+        onChange(`${d}/${mo}/${y}`);
+      }}
+      className={className || cellCls} style={style} {...rest} />
+  );
+}
 
 function ListBlock({ b, onChange, users, sections }) {
   const [draft, setDraft] = useState("");
@@ -247,9 +286,11 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
   const colStyle = (ci) => {
     const c = (b.cols || [])[ci] || "";
     if (ci === 0) return { flex: "1 1 200px", minWidth: 170 };
+    if (/\bdata\b/i.test(c)) return { width: 150, flexShrink: 0 };
     if (/observa|pend|próximo|passo|tema|assunto|coment|previs/i.test(c)) return { flex: "1 1 170px", minWidth: 140 };
     return { width: 130, flexShrink: 0 };
   };
+  const isDateCol = (ci) => /\bdata\b/i.test((b.cols || [])[ci] || "");
   /* Soma da coluna de volume (R$ M) direto no título */
   const numV = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
   const fmtV = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
@@ -267,11 +308,13 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
           {rows.map((r, ri) => (
             <div key={ri} className="flex items-center gap-1.5">
               <span className="text-xs w-4 text-right shrink-0" style={{ color: "#9CA3AF" }}>{ri + 1}</span>
-              {b.cols.map((c, ci) => (
-                <input key={ci} value={r[ci] || ""}
-                  onChange={(e) => onChange({ ...b, rows: rows.map((x, j) => (j === ri ? x.map((v, k) => (k === ci ? e.target.value : v)) : x)) })}
-                  className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />
-              ))}
+              {b.cols.map((c, ci) => {
+                const setVal = (v) => onChange({ ...b, rows: rows.map((x, j) => (j === ri ? x.map((vv, k) => (k === ci ? v : vv)) : x)) });
+                return isDateCol(ci)
+                  ? <DateBR key={ci} value={r[ci] || ""} onChange={setVal} className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />
+                  : <input key={ci} value={r[ci] || ""} onChange={(e) => setVal(e.target.value)}
+                      className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />;
+              })}
               {onPromote && (
                 <button onClick={() => onPromote(ri)} className="shrink-0 p-0.5 rounded" title={promoteLabel || "Marcar como realizada"}
                   style={{ color: C.stamp, background: C.stampSoft }}><Check size={13} /></button>
@@ -281,14 +324,17 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
           ))}
           <div className="flex items-center gap-1.5">
             <span className="text-xs w-4 text-right shrink-0" style={{ color: "#C3C8CF" }}>+</span>
-            {b.cols.map((c, ci) => (
-              <input key={ci} value={draft[ci] || ""}
-                onChange={(e) => setDraft(draft.map((v, k) => (k === ci ? e.target.value : v)))}
-                onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
-                onBlur={() => { if (ci === b.cols.length - 1) commit(); }}
-                placeholder={c}
-                className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />
-            ))}
+            {b.cols.map((c, ci) => {
+              const setVal = (v) => setDraft(draft.map((vv, k) => (k === ci ? v : vv)));
+              const shared = {
+                onKeyDown: (e) => { if (e.key === "Enter") commit(); },
+                onBlur: () => { if (ci === b.cols.length - 1) commit(); },
+                className: cellCls, style: { ...cellStyle, ...colStyle(ci) },
+              };
+              return isDateCol(ci)
+                ? <DateBR key={ci} value={draft[ci] || ""} onChange={setVal} {...shared} />
+                : <input key={ci} value={draft[ci] || ""} onChange={(e) => setVal(e.target.value)} placeholder={c} {...shared} />;
+            })}
             <span className="w-4 shrink-0" />
           </div>
         </div>
@@ -308,8 +354,8 @@ function SqlBlock({ b, onChange, users, sections }) {
       extra={
         <label className="flex items-center gap-1.5 text-xs" style={{ color: "#6B7280" }}>
           último comitê:
-          <input value={b.comite || ""} onChange={(e) => onChange({ ...b, comite: e.target.value })}
-            placeholder="DD/MM/AAAA" className="border rounded-lg px-2 py-1 text-xs outline-none w-24" style={cellStyle} />
+          <DateBR value={b.comite} onChange={(v) => onChange({ ...b, comite: v })}
+            className="border rounded-lg px-1.5 py-1 text-xs outline-none" style={{ ...cellStyle, width: 130 }} />
         </label>
       }>
       <div className="flex flex-col gap-3">
@@ -408,8 +454,8 @@ function FupBlock({ b, onChange, users, sections }) {
       extra={
         <label className="flex items-center gap-1.5 text-xs" style={{ color: "#6B7280" }}>
           data:
-          <input value={b.date || ""} onChange={(e) => onChange({ ...b, date: e.target.value })}
-            placeholder="DD/MM/AAAA" className="border rounded-lg px-2 py-1 text-xs outline-none w-24" style={cellStyle} />
+          <DateBR value={b.date} onChange={(v) => onChange({ ...b, date: v })}
+            className="border rounded-lg px-1.5 py-1 text-xs outline-none" style={{ ...cellStyle, width: 130 }} />
         </label>
       }
       hint="Comandos: @responsável · # prazo · !subtema · * importante">
@@ -463,6 +509,7 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
     <div className="flex flex-col gap-3">
       {blocks.map((b, i) => {
         if (b.type === "metric") return <MetricBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "reunioes") return <ReunioesBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "check") return <CheckBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "list") return <ListBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "table") return <TableBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections}

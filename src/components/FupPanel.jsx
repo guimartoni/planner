@@ -65,6 +65,11 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     const p = findPrev(mb);
     if (String(mb.value || "").trim() || p) kpis.push({ label: mb.title.replace(/^[^0-9A-Za-zÀ-ÿ]+\s*/, ""), cur: num(mb.value), prev: p ? num(p.value) : null });
   });
+  B.filter((b) => b.type === "reunioes").forEach((rb) => {
+    const p = findPrev(rb);
+    kpis.push({ label: "Reuniões agendadas", cur: num(rb.agendadas), prev: p ? num(p.agendadas) : null });
+    kpis.push({ label: "Reuniões realizadas", cur: num(rb.realizadas), prev: p ? num(p.realizadas) : null });
+  });
   const realiz = findT(/VISITAS REALIZADAS/i) || findT(/REALIZADAS NA SEMANA/i, "list");
   const agend = findT(/VISITAS AGENDADAS/i, "table");
   const pipeR = findT(/PIPE REALIZADAS/i, "table");
@@ -185,6 +190,16 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     );
   };
 
+  const renderReunioes = (b) => {
+    // os números já estão nos KPIs do topo; o card aparece se houver comentário
+    if (!(b.comment || "").trim() && !showEmpty) return null;
+    return (
+      <Card key={b.id} title={b.title} sub={`${b.agendadas || 0} agendadas · ${b.realizadas || 0} realizadas`}>
+        <Comment b={b} />
+      </Card>
+    );
+  };
+
   const renderConsolidado = (b) => {
     const v = b.vals || {};
     const items = [
@@ -258,6 +273,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
           if (b.type === "text") return renderText(b);
           if (b.type === "fup") return renderFup(b);
           if (b.type === "consolidado") return renderConsolidado(b);
+          if (b.type === "reunioes") return renderReunioes(b);
           return null;
         })}
       </div>

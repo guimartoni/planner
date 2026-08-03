@@ -70,11 +70,12 @@ function prepareData(data) {
     m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
     changed = true;
   }
-  // Inbound: reuniões agendadas/realizadas + consolidado do mês no topo
+  // Inbound: bloco duplo de reuniões (agendadas · realizadas) + consolidado no topo
   if (iIdx >= 0) {
     let def = m.templates[iIdx].blocksDef || [];
     let mudou = false;
-    if (def.some((b) => b.type === "metric" && /REUNIÕES DA SEMANA/i.test(b.title || ""))) { def = upgradeReunioes(def); mudou = true; }
+    const def2 = upgradeReunioes(def);
+    if (def2 !== def) { def = def2; mudou = true; }
     if (!def.some((b) => b.type === "consolidado")) { def = [CONSOLIDADO_BLOCK(), ...def]; mudou = true; }
     if (mudou) {
       m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
@@ -500,6 +501,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       if ((n.mes || mesDe(n.createdAt)) !== mes) return;
       const blocks = n.id === curId ? curBlocks : (loadBody(n.id) || {}).blocks;
       (blocks || []).forEach((b) => {
+        if (b.type === "reunioes") acc.reunioes += num(b.realizadas);
         if (b.type === "metric") {
           if (/REALIZADAS|REUNIÕES DA SEMANA/i.test(b.title || "")) acc.reunioes += num(b.value);
           else if (/LEADS INBOUND/i.test(b.title || "")) acc.leadsIn += num(b.value);

@@ -66,6 +66,15 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
           decisoes.push(`${t}: sem informações${obs}`);
         }
       }
+      if (b.type === "reunioes") {
+        const a = String(b.agendadas || "").trim(), r = String(b.realizadas || "").trim();
+        if (a || r) {
+          decisoes.push(`${t}: ${a || 0} agendada(s), ${r || 0} realizada(s)${obs}`);
+          stats.push(`${a || 0} reuniões agendadas e ${r || 0} realizadas`);
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
+        }
+      }
       if (b.type === "metric") {
         if (String(b.value || "").trim()) {
           decisoes.push(`${t}: ${b.value}${obs}`);

@@ -29,21 +29,42 @@ export const CONSOLIDADO_BLOCK = () => (
   { id: uid(), type: "consolidado", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
 );
 
-/* Migração: divide "REUNIÕES DA SEMANA" em agendadas + realizadas,
-   preservando o valor já digitado como "realizadas". */
+/* Bloco duplo de reuniões: agendadas e realizadas lado a lado */
+export const REUNIOES_BLOCK = () => (
+  { id: uid(), type: "reunioes", title: "🤝 REUNIÕES DA SEMANA", agendadas: "", realizadas: "" }
+);
+
+/* Migração: funde as métricas antigas (REUNIÕES DA SEMANA / AGENDADAS /
+   REALIZADAS) num único bloco duplo, preservando os valores digitados. */
 export function upgradeReunioes(blocks) {
-  const i = (blocks || []).findIndex((b) => b.type === "metric" && /REUNIÕES DA SEMANA/i.test(b.title || ""));
-  if (i < 0) return blocks;
-  const out = [...blocks];
-  out[i] = { ...out[i], title: "🤝 REUNIÕES REALIZADAS" };
-  out.splice(i, 0, { id: uid(), type: "metric", title: "📅 REUNIÕES AGENDADAS", value: "" });
+  const src = blocks || [];
+  const solta = (b) => b.type === "metric" && /REUNIÕES (AGENDADAS|REALIZADAS|DA SEMANA)/i.test(b.title || "");
+  if (src.some((b) => b.type === "reunioes")) {
+    const rest = src.filter((b) => !solta(b));
+    return rest.length === src.length ? blocks : rest;
+  }
+  const iAg = src.findIndex((b) => b.type === "metric" && /REUNIÕES AGENDADAS/i.test(b.title || ""));
+  const iRe = src.findIndex((b) => b.type === "metric" && /REUNIÕES (REALIZADAS|DA SEMANA)/i.test(b.title || ""));
+  if (iAg < 0 && iRe < 0) return blocks;
+  const dual = {
+    id: uid(), type: "reunioes", title: "🤝 REUNIÕES DA SEMANA",
+    agendadas: iAg >= 0 ? (src[iAg].value || "") : "",
+    realizadas: iRe >= 0 ? (src[iRe].value || "") : "",
+    comment: (iRe >= 0 && src[iRe].comment) || (iAg >= 0 && src[iAg].comment) || "",
+  };
+  const pos = [iAg, iRe].filter((x) => x >= 0).sort((a, b) => a - b)[0];
+  const out = [];
+  src.forEach((b, i) => {
+    if (i === pos) out.push(dual);
+    if (i === iAg || i === iRe) return;
+    out.push(b);
+  });
   return out;
 }
 
 export const INBOUND_BLOCKS = () => ([
   CONSOLIDADO_BLOCK(),
-  { id: uid(), type: "metric", title: "📅 REUNIÕES AGENDADAS", value: "" },
-  { id: uid(), type: "metric", title: "🤝 REUNIÕES REALIZADAS", value: "" },
+  REUNIOES_BLOCK(),
   { id: uid(), type: "metric", title: "📥 LEADS INBOUND", value: "" },
   { id: uid(), type: "metric", title: "🔁 LEADS REMARKETING", value: "" },
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
@@ -111,6 +132,12 @@ export function compareBlocks(prev, cur) {
     if (cb.type === "metric") {
       const c = num(cb.value), p = num(pb.value);
       if (c || p) facts.push(`${cb.title}: ${fmtN(c)} (antes ${fmtN(p)}, Δ ${c - p >= 0 ? "+" : ""}${fmtN(c - p)})`);
+    }
+    if (cb.type === "reunioes") {
+      [["agendadas", "Reuniões agendadas"], ["realizadas", "Reuniões realizadas"]].forEach(([k, label]) => {
+        const c = num(cb[k]), p = num(pb[k]);
+        if (c || p) facts.push(`${label}: ${fmtN(c)} (antes ${fmtN(p)}, Δ ${c - p >= 0 ? "+" : ""}${fmtN(c - p)})`);
+      });
     }
     if (cb.type === "sql") {
       ["aprovados", "ressalvados", "reprovados"].forEach((g) => {

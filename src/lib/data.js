@@ -55,6 +55,7 @@ export function blocksToText(blocks) {
   return blocks.map((b) => {
     let base = "";
     if (b.type === "metric") base = `${b.title}: ${b.value || "?"}`;
+    else if (b.type === "reunioes") base = `${b.title}: agendadas ${b.agendadas || "?"} · realizadas ${b.realizadas || "?"}`;
     else if (b.type === "check") base = `${b.title}: ${b.checked ? "Realizado ✔" : "Não realizado ✖"}`;
     else if (b.type === "text") base = `${b.title}:\n${b.text || ""}`;
     else if (b.type === "fup") base = `${b.title}${b.date ? ` — ${b.date}` : ""}:\n${b.text || ""}`;
