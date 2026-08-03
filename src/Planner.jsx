@@ -650,7 +650,28 @@ export default function Planner() {
     history.replaceState(null, "", location.pathname + location.search + (noteId ? "#p=" + noteId : ""));
   }, [noteId, phase]);
 
-  const openInTab = (nId) => window.open(`${location.origin}${location.pathname}#p=${nId}`, "_blank");
+  /* ---------- abas internas: páginas abertas lado a lado dentro do app ---------- */
+  const [tabs, setTabs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("planner-tabs-v1")) || []; } catch (e) { return []; }
+  });
+  useEffect(() => { try { localStorage.setItem("planner-tabs-v1", JSON.stringify(tabs)); } catch (e) {} }, [tabs]);
+
+  const openInTab = (nId) => {
+    setTabs((t) => (t.includes(nId) ? t : [...t, nId]));
+    goToNote(nId);
+  };
+  const closeTab = (nId) => setTabs((t) => t.filter((x) => x !== nId));
+
+  const tabsInfo = useMemo(() => {
+    if (!meta) return [];
+    const out = [];
+    tabs.forEach((id) => {
+      meta.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+        if (n.id === id) out.push(n);
+      })));
+    });
+    return out;
+  }, [tabs, meta]);
 
   const goToNote = (nId) => {
     for (const nb of meta.notebooks) {
@@ -1224,6 +1245,26 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         </button>
       </header>
 
+      {tabsInfo.length > 0 && (
+        <div className="flex items-center gap-1 px-2 pt-1.5 overflow-x-auto shrink-0 border-b"
+          style={{ background: "#DDE1E6", borderColor: C.line }}>
+          {tabsInfo.map((n) => (
+            <div key={n.id}
+              onClick={() => { goToNote(n.id); setShowSide(false); }}
+              className="flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-t-lg text-xs cursor-pointer whitespace-nowrap shrink-0"
+              style={n.id === noteId && view === "editor"
+                ? { background: C.appBg, color: "#1F2937", fontWeight: 600 }
+                : { background: "#EAECEF", color: "#4B5563" }}>
+              <span className="truncate" style={{ maxWidth: 150 }}>{n.title || "Página sem nome"}</span>
+              <button onClick={(e) => { e.stopPropagation(); closeTab(n.id); }}
+                className="p-0.5 rounded-full" title="Fechar aba" style={{ color: "#9CA3AF" }}>
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {pendingAuto && (() => {
         const meUser = meta.users.find((x) => x.id === me?.id) || { id: me?.id, name: me?.name || "Gestor" };
         const txt = reportForUser(meUser, meta.tasks || [], true).slice(0, 1800);
@@ -1305,8 +1346,8 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               });
               const row = (n, sub) => (
                 <div key={n.id} onClick={() => { setNoteId(n.id); setView("editor"); setShowSide(false); }}
-                  onContextMenu={(e) => { e.preventDefault(); openInTab(n.id); }}
-                  title="Clique com o botão direito para abrir em nova aba"
+                  onContextMenu={(e) => { e.preventDefault(); openInTab(n.id); setShowSide(false); }}
+                  title="Clique com o botão direito para abrir em uma aba do app"
                   className="px-3 py-2 rounded-lg mb-0.5 cursor-pointer group flex items-start justify-between gap-2"
                   style={{ ...(n.id === noteId ? { background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.08)" } : {}), ...(sub ? { marginLeft: 16 } : {}) }}>
                   <div className="min-w-0">
@@ -1319,8 +1360,8 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                       {n.concluded && <span className="px-1.5 rounded text-white" style={{ background: C.stamp, fontSize: 10 }}>ata gerada</span>}
                     </p>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); openInTab(n.id); }}
-                    className="opacity-40 group-hover:opacity-100 p-1 shrink-0" title="Abrir em nova aba" style={{ color: "#6B7280" }}>
+                  <button onClick={(e) => { e.stopPropagation(); openInTab(n.id); setShowSide(false); }}
+                    className="opacity-40 group-hover:opacity-100 p-1 shrink-0" title="Abrir em uma aba do app" style={{ color: "#6B7280" }}>
                     <ExternalLink size={13} />
                   </button>
                   <button onClick={(e) => { e.stopPropagation(); setMoveId(n.id); }}
