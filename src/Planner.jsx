@@ -489,7 +489,6 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       for (const nb of m.notebooks) {
         for (const s of nb.sections) {
           for (const n of s.notes) {
-            if (tasks.filter((t) => t.noteId === n.id).some((t) => t.origin === "ia")) continue;
             const b = n.id === noteId && body ? body : loadBody(n.id);
             tasks = reconcileTasks(tasks, n, nb.name, bodyText(b), m.users);
           }

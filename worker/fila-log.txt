@@ -4,3 +4,7 @@
 [03/08 11:20:42] Resposta gravada para teste123
 [03/08 11:26:01] Processando teste456 (tipo: teste)
 [03/08 11:26:06] Resposta gravada para teste456
+[03/08 12:21:29] Processando u39txe31 (tipo: resumo-reuniao)
+[03/08 12:22:11] Resposta gravada para u39txe31
+[03/08 12:52:24] Processando zyajuvrb (tipo: resumo-reuniao)
+[03/08 12:53:00] Resposta gravada para zyajuvrb

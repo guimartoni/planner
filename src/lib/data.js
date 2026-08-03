@@ -92,16 +92,25 @@ export function parseDraftTasks(content, users) {
   return tasks;
 }
 
-/* Reconcilia as tarefas de uma página com as linhas atuais das anotações */
+/* Reconcilia as tarefas de uma página com as linhas atuais das anotações.
+   As tarefas da ata (origin "ia") são preservadas como estão; os @ digitados
+   depois também viram tarefas — sem duplicar o que a ata já criou. */
 export function reconcileTasks(allTasks, note, nbName, content, users) {
   const existing = allTasks.filter((t) => t.noteId === note.id);
-  if (existing.some((t) => t.origin === "ia")) return allTasks; // ata gerada: IA manda
-  const drafts = parseDraftTasks(content, users);
-  if (!drafts.length && !existing.length) return allTasks;
+  const iaTasks = existing.filter((t) => t.origin === "ia");
+  const draftTasks = existing.filter((t) => t.origin !== "ia");
+  const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  const jaNaAta = (d) => iaTasks.some((t) => {
+    if (t.userId !== d.user.id) return false;
+    const a = norm(t.text), b = norm(d.text);
+    return a && b && (a.includes(b) || b.includes(a));
+  });
+  const drafts = parseDraftTasks(content, users).filter((d) => !jaNaAta(d));
+  if (!drafts.length && !draftTasks.length) return allTasks;
   const sig = (t) => `${t.userId}|${t.text}|${t.date || ""}|${t.important ? 1 : 0}`;
   const pools = {};
-  existing.forEach((t) => { (pools[sig(t)] = pools[sig(t)] || []).push(t); });
-  let changed = drafts.length !== existing.length;
+  draftTasks.forEach((t) => { (pools[sig(t)] = pools[sig(t)] || []).push(t); });
+  let changed = drafts.length !== draftTasks.length;
   const next = drafts.map((d) => {
     const s = `${d.user.id}|${d.text}|${d.date || ""}|${d.important ? 1 : 0}`;
     const pool = pools[s];
@@ -114,7 +123,7 @@ export function reconcileTasks(allTasks, note, nbName, content, users) {
     };
   });
   if (!changed) return allTasks;
-  return [...allTasks.filter((t) => t.noteId !== note.id), ...next];
+  return [...allTasks.filter((t) => t.noteId !== note.id), ...iaTasks, ...next];
 }
 
 export function seedMeta() {
