@@ -10,7 +10,8 @@ import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK } fr
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
-import { readJsonFile } from "./onedrive.js";
+import { deleteFile, ensureFolder, readJsonFile, uploadBinaryFile } from "./onedrive.js";
+import { imgPath, prepareImage } from "./components/PageImages.jsx";
 import { usePlannerData } from "./store.js";
 import AtaDocument from "./components/AtaDocument.jsx";
 import Avatar from "./components/Avatar.jsx";
@@ -231,6 +232,36 @@ export default function Planner() {
       saveBody(noteId, next);
       return next;
     });
+  };
+
+  /* ---------- imagens da página (arquivos em /planner-imagens no OneDrive) ---------- */
+  const [imgBusy, setImgBusy] = useState(0);
+
+  const addImageToNote = async (file) => {
+    const nId = noteIdRef.current;
+    if (!nId) return;
+    setImgBusy((v) => v + 1);
+    try {
+      const { blob, ext, type } = await prepareImage(file);
+      const id = uid();
+      await ensureFolder("planner-imagens");
+      await uploadBinaryFile(`/planner-imagens/${id}.${ext}`, blob, type);
+      if (noteIdRef.current === nId) {
+        patchBody((b) => ({ images: [...((b && b.images) || []), { id, ext, w: 55 }] }));
+      } else {
+        const b = loadBody(nId) || { content: "", transcript: "", structured: null };
+        saveBody(nId, { ...b, images: [...(b.images || []), { id, ext, w: 55 }] });
+      }
+    } catch (e) {
+      window.alert("Não consegui enviar a imagem — verifique a internet e tente de novo.");
+    }
+    setImgBusy((v) => v - 1);
+  };
+
+  const removeImageFromNote = (id) => {
+    const im = ((body && body.images) || []).find((x) => x.id === id);
+    patchBody((b) => ({ images: (b.images || []).filter((x) => x.id !== id) }));
+    if (im) deleteFile(imgPath(im)).catch(() => {});
   };
 
   const patchNoteMeta = (patch) => {
@@ -470,12 +501,18 @@ export default function Planner() {
   };
 
   const purgeNote = (id) => {
+    const b = loadBody(id);
+    ((b && b.images) || []).forEach((im) => { deleteFile(imgPath(im)).catch(() => {}); });
     deleteBodyKey(id);
     setMeta((m) => ({ ...m, trash: (m.trash || []).filter((t) => t.id !== id) }));
   };
 
   const emptyTrash = () => {
-    (metaRef.current?.trash || []).forEach((t) => deleteBodyKey(t.id));
+    (metaRef.current?.trash || []).forEach((t) => {
+      const b = loadBody(t.id);
+      ((b && b.images) || []).forEach((im) => { deleteFile(imgPath(im)).catch(() => {}); });
+      deleteBodyKey(t.id);
+    });
     setMeta((m) => ({ ...m, trash: [] }));
   };
 
@@ -1344,6 +1381,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               onBody={patchBody}
               onConclude={concludeAta}
               iaState={iaState}
+              onImage={addImageToNote} onRemoveImage={removeImageFromNote} imgBusy={imgBusy > 0}
             />
           )}
         </main>

@@ -5,16 +5,18 @@ import { bodyText, parseDraftTasks } from "../lib/data.js";
 import Avatar from "./Avatar.jsx";
 import { BlocksEditor } from "./Blocks.jsx";
 import FupPanel from "./FupPanel.jsx";
+import PageImages from "./PageImages.jsx";
 
 export default function Editor({
   noteMeta, body, users, sections, prevBlocks, tplInfo, tplSiblings,
   onGoNote, onSaveTemplate, onTitle, onMeta, onBody, saveState,
-  onConclude, iaState,
+  onConclude, iaState, onImage, onRemoveImage, imgBusy,
 }) {
   const [tplSaved, setTplSaved] = useState(false);
   const [viewMode, setViewMode] = useState("edit"); // edit | panel
   const taRef = useRef(null);
   const bgRef = useRef(null);
+  const fileRef = useRef(null);
   const [mentionQ, setMentionQ] = useState(null);
   const [tagQ, setTagQ] = useState(null);
   const [datePick, setDatePick] = useState(false);
@@ -88,6 +90,16 @@ export default function Editor({
   };
 
   const handlePaste = (e) => {
+    // imagem no clipboard (print, cópia de imagem): vira imagem da página
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const it of items) {
+      if (it.type && it.type.startsWith("image/")) {
+        e.preventDefault();
+        const f = it.getAsFile();
+        if (f && onImage) onImage(f);
+        return;
+      }
+    }
     const paste = e.clipboardData && e.clipboardData.getData("text");
     if (!paste || !/[#@!]/.test(paste)) return; // sem comandos: colagem normal
     e.preventDefault();
@@ -277,10 +289,27 @@ export default function Editor({
               className="w-8 h-8 rounded-lg text-sm border" style={{ borderColor: C.line, background: "#fff", color: "#374151" }}>
               •
             </button>
+            <button title="Adicionar imagem (ou cole com Ctrl+V)"
+              onClick={() => fileRef.current && fileRef.current.click()}
+              className="w-8 h-8 rounded-lg text-sm border" style={{ borderColor: C.line, background: "#fff" }}>
+              📷
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={(e) => {
+                [...(e.target.files || [])].forEach((f) => onImage && onImage(f));
+                e.target.value = "";
+              }} />
             <span className="text-xs ml-1" style={{ color: "#B0B5BC" }}>selecione o texto e toque no estilo</span>
           </div>
 
-          <div className="relative rounded-xl border shadow-sm" style={{ borderColor: C.line, background: C.paper }}>
+          <div className="relative rounded-xl border shadow-sm" style={{ borderColor: C.line, background: C.paper }}
+            onDragOver={(e) => {
+              if ([...(e.dataTransfer?.items || [])].some((i) => i.type && i.type.startsWith("image/"))) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              const fs = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith("image/"));
+              if (fs.length) { e.preventDefault(); fs.forEach((f) => onImage && onImage(f)); }
+            }}>
             <div
               ref={bgRef}
               aria-hidden
@@ -366,6 +395,11 @@ export default function Editor({
           </div>
         </>
       )}
+
+      <PageImages
+        images={body.images} busy={imgBusy}
+        onResize={(id, w) => onBody((b) => ({ images: (b.images || []).map((im) => (im.id === id ? { ...im, w } : im)) }))}
+        onRemove={(id) => onRemoveImage && onRemoveImage(id)} />
 
       {(body.routed || []).length > 0 && (
         <p className="mt-3 text-xs flex items-center gap-1" style={{ color: C.stamp }}>

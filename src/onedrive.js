@@ -57,6 +57,27 @@ export async function writeJsonFile(path, data) {
   return await res.json();
 }
 
+/* Envia um arquivo binário (imagem) para o OneDrive. */
+export async function uploadBinaryFile(path, blob, contentType) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root:${path}:/content`, {
+    method: "PUT",
+    headers: { "Content-Type": contentType || "application/octet-stream" },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Erro ao enviar ${path} (HTTP ${res.status})`);
+  return await res.json();
+}
+
+/* Baixa um arquivo binário e devolve uma URL local para usar em <img>.
+   Retorna null se não existir. */
+export async function readFileAsObjectUrl(path) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root:${path}:/content`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Erro ao ler ${path} (HTTP ${res.status})`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
 export async function deleteFile(path) {
   const res = await graphFetch(`${GRAPH}/me/drive/root:${path}:`, { method: "DELETE" });
   return res.ok || res.status === 404;

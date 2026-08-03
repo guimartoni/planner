@@ -5,6 +5,7 @@ import { blocksToText } from "../lib/data.js";
 import { ataToPdf } from "../pdf.js";
 import Avatar from "./Avatar.jsx";
 import FupPanel from "./FupPanel.jsx";
+import PageImages from "./PageImages.jsx";
 
 const Sec = ({ label, children }) => (
   <div className="mb-4">
@@ -159,6 +160,11 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
         {(s.decisoes || []).length > 0 && (
           <Sec label="Decisões">
             {s.decisoes.map((p, i) => <p key={i} className="text-sm leading-7" style={{ color: "#374151" }}>• {p}</p>)}
+          </Sec>
+        )}
+        {(body.images || []).length > 0 && (
+          <Sec label="Imagens">
+            <PageImages images={body.images} readOnly />
           </Sec>
         )}
         {tasks.length > 0 && (
