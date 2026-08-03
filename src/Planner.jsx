@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, FileText,
+  BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
   FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Search as SearchIcon,
   Send, Trash2, X,
 } from "lucide-react";
@@ -55,6 +55,17 @@ function prepareData(data) {
     m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Parcerias", v: 2, blocksDef: PARCERIAS_BLOCKS() }] };
     changed = true;
   }
+  // Lixeira: itens com mais de 30 dias são excluídos definitivamente
+  const cut = new Date(); cut.setDate(cut.getDate() - 30);
+  const cutKey = `${cut.getFullYear()}${String(cut.getMonth() + 1).padStart(2, "0")}${String(cut.getDate()).padStart(2, "0")}`;
+  const expirados = (m.trash || []).filter((t) => dateKeyBR(t.deletedAt) && dateKeyBR(t.deletedAt) < cutKey);
+  if (expirados.length) {
+    expirados.forEach((t) => { delete bodies[t.id]; });
+    const expIds = new Set(expirados.map((t) => t.id));
+    m = { ...m, trash: m.trash.filter((t) => !expIds.has(t.id)) };
+    changed = true;
+  }
+
   // FUP Murilo (segundas): garante o bloco no fim dos três modelos de FUP já existentes
   const semFup = (t) => t.v === 2 && /farming|inbound|parceria/i.test(t.name) && !(t.blocksDef || []).some((b) => b.type === "fup");
   if (m.templates.some(semFup)) {
@@ -164,6 +175,13 @@ export default function Planner() {
     if (cloudPhase !== "pronto" || phase !== "boot") return;
     const ids = idsRef.current;
     if (ids) { setNbId(ids.nbId); setSecId(ids.secId); setNoteId(ids.noteId); }
+    // link direto #p=<id> (aberto em nova aba): vai para aquela página
+    const hm = (location.hash || "").match(/#p=([A-Za-z0-9_-]+)/);
+    if (hm) {
+      (metaRef.current?.notebooks || []).forEach((nb) => nb.sections.forEach((s) => {
+        if (s.notes.some((n) => n.id === hm[1])) { setNbId(nb.id); setSecId(s.id); setNoteId(hm[1]); }
+      }));
+    }
     const myId = localStorage.getItem(ME_KEY);
     const found = myId && (metaRef.current.users || []).find((u) => u.id === myId);
     if (found) { setMe(found); setPhase("ready"); }
@@ -343,6 +361,57 @@ export default function Planner() {
     setSecId(s.id); setNoteId(null);
   };
 
+  /* Excluir aba/subtema: todas as páginas vão para a lixeira e uma lápide
+     em meta.zapped impede que a sincronização traga a estrutura de volta. */
+  const noteToTrash = (nb, s, n, m) => ({
+    ...n, nbId: nb.id, secId: s.id, nbName: nb.name, secName: s.name,
+    deletedAt: todayBR(), tasks: (m.tasks || []).filter((t) => t.noteId === n.id),
+  });
+
+  const deleteNotebook = (id) => {
+    const nb = meta.notebooks.find((x) => x.id === id);
+    if (!nb || nb.daily) return;
+    const nPag = nb.sections.reduce((a, s) => a + s.notes.length, 0);
+    if (!window.confirm(`Excluir a aba "${nb.name}"?` + (nPag ? ` As ${nPag} página(s) dela vão para a lixeira (30 dias).` : ""))) return;
+    setMeta((m) => {
+      const cur = m.notebooks.find((x) => x.id === id);
+      if (!cur) return m;
+      const entries = [];
+      cur.sections.forEach((s) => s.notes.forEach((n) => entries.push(noteToTrash(cur, s, n, m))));
+      const ids = new Set(entries.map((e) => e.id));
+      return {
+        ...m,
+        trash: [...entries, ...(m.trash || [])],
+        tasks: (m.tasks || []).filter((t) => !ids.has(t.noteId)),
+        notebooks: m.notebooks.filter((x) => x.id !== id),
+        zapped: [...(m.zapped || []), { id, at: todayBR() }, ...cur.sections.map((s) => ({ id: s.id, at: todayBR() }))],
+      };
+    });
+    if (notebook?.id === id) { setNbId(null); setSecId(null); setNoteId(null); }
+  };
+
+  const deleteSection = (id) => {
+    const s = notebook?.sections.find((x) => x.id === id);
+    if (!s) return;
+    if (notebook.sections.length <= 1) { window.alert("Esta é a única seção da aba — para removê-la, exclua a aba inteira."); return; }
+    if (!window.confirm(`Excluir o subtema "${s.name}"?` + (s.notes.length ? ` As ${s.notes.length} página(s) dele vão para a lixeira (30 dias).` : ""))) return;
+    setMeta((m) => {
+      const nb = m.notebooks.find((x) => x.id === notebook.id);
+      const cur = nb && nb.sections.find((x) => x.id === id);
+      if (!cur) return m;
+      const entries = cur.notes.map((n) => noteToTrash(nb, cur, n, m));
+      const ids = new Set(entries.map((e) => e.id));
+      return {
+        ...m,
+        trash: [...entries, ...(m.trash || [])],
+        tasks: (m.tasks || []).filter((t) => !ids.has(t.noteId)),
+        notebooks: m.notebooks.map((x) => x.id !== nb.id ? x : { ...x, sections: x.sections.filter((y) => y.id !== id) }),
+        zapped: [...(m.zapped || []), { id, at: todayBR() }],
+      };
+    });
+    if (section?.id === id) { setSecId(null); setNoteId(null); }
+  };
+
   const addNote = () => {
     const n = { id: uid(), title: "", createdAt: todayBR(), concluded: false, author: me?.name || "" };
     setMeta((m) => ({
@@ -389,7 +458,9 @@ export default function Planner() {
         }),
       });
       if (!placed) {
-        notebooks = notebooks.map((nb, i) => i !== 0 ? nb : {
+        // destino sumiu: cai na 1ª seção da mesma aba, senão na 1ª aba comum
+        const destNb = m.notebooks.find((nb) => nb.id === tnb) || m.notebooks.find((nb) => !nb.daily) || m.notebooks[0];
+        notebooks = notebooks.map((nb) => nb.id !== destNb.id ? nb : {
           ...nb,
           sections: nb.sections.map((s, j) => j !== 0 ? s : { ...s, notes: [nMeta, ...s.notes] }),
         });
@@ -486,6 +557,14 @@ export default function Planner() {
   const toggleTask = (taskId, done) => {
     setMeta((m) => ({ ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, done } : t)) }));
   };
+
+  /* endereço da página no navegador acompanha a página aberta (permite copiar o link) */
+  useEffect(() => {
+    if (phase !== "ready") return;
+    history.replaceState(null, "", location.pathname + location.search + (noteId ? "#p=" + noteId : ""));
+  }, [noteId, phase]);
+
+  const openInTab = (nId) => window.open(`${location.origin}${location.pathname}#p=${nId}`, "_blank");
 
   const goToNote = (nId) => {
     for (const nb of meta.notebooks) {
@@ -1011,7 +1090,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           setSecId(s0 ? s0.id : null);
           setNoteId(s0 && s0.notes.length ? s0.notes[0].id : null);
           setView("editor");
-        }} onAdd={addNotebook} onRename={renameNotebook} />
+        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} />
         <div className="flex-1" />
         <button onClick={syncNow} className="p-2 rounded-lg text-white" style={{ background: C.inkSoft }} title="Sincronizar com o OneDrive">
           <RefreshCw size={15} className={syncing ? "animate-spin" : ""} />
@@ -1104,6 +1183,12 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                       <Pencil size={11} />
                     </span>
                   )}
+                  {s.id === section?.id && (
+                    <span onClick={(e) => { e.stopPropagation(); deleteSection(s.id); }}
+                      className="opacity-50 hover:opacity-100" title="Excluir subtema" style={{ color: C.danger }}>
+                      <Trash2 size={11} />
+                    </span>
+                  )}
                   <span className="text-xs opacity-60">{s.notes.length}</span>
                 </button>
               )
@@ -1134,6 +1219,8 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               });
               const row = (n, sub) => (
                 <div key={n.id} onClick={() => { setNoteId(n.id); setView("editor"); setShowSide(false); }}
+                  onContextMenu={(e) => { e.preventDefault(); openInTab(n.id); }}
+                  title="Clique com o botão direito para abrir em nova aba"
                   className="px-3 py-2 rounded-lg mb-0.5 cursor-pointer group flex items-start justify-between gap-2"
                   style={{ ...(n.id === noteId ? { background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.08)" } : {}), ...(sub ? { marginLeft: 16 } : {}) }}>
                   <div className="min-w-0">
@@ -1146,6 +1233,10 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                       {n.concluded && <span className="px-1.5 rounded text-white" style={{ background: C.stamp, fontSize: 10 }}>ata gerada</span>}
                     </p>
                   </div>
+                  <button onClick={(e) => { e.stopPropagation(); openInTab(n.id); }}
+                    className="opacity-40 group-hover:opacity-100 p-1 shrink-0" title="Abrir em nova aba" style={{ color: "#6B7280" }}>
+                    <ExternalLink size={13} />
+                  </button>
                   <button onClick={(e) => { e.stopPropagation(); setMoveId(n.id); }}
                     className="opacity-40 group-hover:opacity-100 p-1 shrink-0" title="Mover página" style={{ color: C.stamp }}>
                     <FolderInput size={13} />
@@ -1393,7 +1484,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
 }
 
 /* ------------------------------------------------------------------ */
-function NotebookTabs({ meta, nbId, onPick, onAdd, onRename }) {
+function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete }) {
   const [adding, setAdding] = useState(false);
   const [val, setVal] = useState("");
   const [editId, setEditId] = useState(null);
@@ -1424,6 +1515,12 @@ function NotebookTabs({ meta, nbId, onPick, onAdd, onRename }) {
               <span onClick={(e) => { e.stopPropagation(); setEditId(nb.id); setEditVal(nb.name); }}
                 className="opacity-50 hover:opacity-100" title="Renomear área">
                 <Pencil size={11} />
+              </span>
+            )}
+            {nb.id === nbId && !nb.daily && (
+              <span onClick={(e) => { e.stopPropagation(); onDelete(nb.id); }}
+                className="opacity-50 hover:opacity-100" title="Excluir área" style={{ color: "#E0635C" }}>
+                <Trash2 size={11} />
               </span>
             )}
           </button>

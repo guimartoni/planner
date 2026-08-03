@@ -6,6 +6,8 @@ import { uid, todayBR } from "./util.js";
 export function mergeMeta(local, remote) {
   const byId = (arr) => { const m = {}; (arr || []).forEach((x) => { m[x.id] = x; }); return m; };
   const trashIds = new Set([...(local.trash || []), ...(remote.trash || [])].map((t) => t.id));
+  // lápides de abas/subtemas excluídos — impedem que voltem vindos do outro lado
+  const zapIds = new Set([...(local.zapped || []), ...(remote.zapped || [])].map((z) => z.id));
   const unionById = (l, r) => {
     const lm = byId(l); const out = [...(l || [])];
     (r || []).forEach((x) => { if (!lm[x.id]) out.push(x); });
@@ -24,22 +26,23 @@ export function mergeMeta(local, remote) {
       ? { ...s, notes: mergeNotes(s.notes, rm[s.id].notes) }
       : { ...s, notes: (s.notes || []).filter((n) => !trashIds.has(n.id)) });
     (rs || []).forEach((s) => {
-      if (!lm[s.id]) out.push({ ...s, notes: (s.notes || []).filter((n) => !trashIds.has(n.id)) });
+      if (!lm[s.id] && !zapIds.has(s.id)) out.push({ ...s, notes: (s.notes || []).filter((n) => !trashIds.has(n.id)) });
     });
-    return out;
+    return out.filter((s) => !zapIds.has(s.id));
   };
   const mergeNbs = (lb, rb) => {
     const rm = byId(rb);
     const lm = byId(lb);
     const out = (lb || []).map((nb) => rm[nb.id] ? { ...nb, sections: mergeSections(nb.sections, rm[nb.id].sections) } : nb);
-    (rb || []).forEach((nb) => { if (!lm[nb.id]) out.push(nb); });
-    return out;
+    (rb || []).forEach((nb) => { if (!lm[nb.id] && !zapIds.has(nb.id)) out.push(nb); });
+    return out.filter((nb) => !zapIds.has(nb.id));
   };
   return {
     ...remote,
     ...local,
     notebooks: mergeNbs(local.notebooks, remote.notebooks),
     trash: unionById(local.trash, remote.trash),
+    zapped: unionById(local.zapped, remote.zapped),
     tasks: unionById(local.tasks, remote.tasks),
     users: unionById(local.users, remote.users),
     templates: unionById(local.templates, remote.templates),

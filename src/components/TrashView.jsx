@@ -23,7 +23,7 @@ export default function TrashView({ meta, onRestore, onPurge, onEmpty }) {
           )
         )}
       </div>
-      <p className="text-xs mb-4" style={{ color: "#9CA3AF" }}>Páginas descartadas ficam guardadas aqui até serem restauradas ou excluídas definitivamente.</p>
+      <p className="text-xs mb-4" style={{ color: "#9CA3AF" }}>Páginas descartadas ficam guardadas aqui por 30 dias — depois disso são excluídas definitivamente. Você pode restaurar quando quiser dentro desse prazo.</p>
       {trash.length === 0 && <p className="text-sm" style={{ color: "#6B7280" }}>A lixeira está vazia.</p>}
       <div className="flex flex-col gap-1.5">
         {trash.map((t) => (
