@@ -73,11 +73,42 @@ export function upgradeReunioes(blocks) {
   return out;
 }
 
+/* Bloco duplo de leads: inbound e remarketing lado a lado */
+export const LEADS_BLOCK = () => (
+  { id: uid(), type: "leads", title: "📥 LEADS DA SEMANA", inbound: "", remarketing: "" }
+);
+
+/* Migração: funde as métricas LEADS INBOUND e LEADS REMARKETING num bloco só */
+export function upgradeLeads(blocks) {
+  const src = blocks || [];
+  const solta = (b) => b.type === "metric" && /LEADS (INBOUND|REMARKETING)/i.test(b.title || "");
+  if (src.some((b) => b.type === "leads")) {
+    const rest = src.filter((b) => !solta(b));
+    return rest.length === src.length ? blocks : rest;
+  }
+  const iIn = src.findIndex((b) => b.type === "metric" && /LEADS INBOUND/i.test(b.title || ""));
+  const iRe = src.findIndex((b) => b.type === "metric" && /LEADS REMARKETING/i.test(b.title || ""));
+  if (iIn < 0 && iRe < 0) return blocks;
+  const dual = {
+    id: uid(), type: "leads", title: "📥 LEADS DA SEMANA",
+    inbound: iIn >= 0 ? (src[iIn].value || "") : "",
+    remarketing: iRe >= 0 ? (src[iRe].value || "") : "",
+    comment: (iIn >= 0 && src[iIn].comment) || (iRe >= 0 && src[iRe].comment) || "",
+  };
+  const pos = [iIn, iRe].filter((x) => x >= 0).sort((a, b) => a - b)[0];
+  const out = [];
+  src.forEach((b, i) => {
+    if (i === pos) out.push(dual);
+    if (i === iIn || i === iRe) return;
+    out.push(b);
+  });
+  return out;
+}
+
 export const INBOUND_BLOCKS = () => ([
   CONSOLIDADO_BLOCK(),
   REUNIOES_BLOCK(),
-  { id: uid(), type: "metric", title: "📥 LEADS INBOUND", value: "" },
-  { id: uid(), type: "metric", title: "🔁 LEADS REMARKETING", value: "" },
+  LEADS_BLOCK(),
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   ...MIA_BLOCKS(),
@@ -163,6 +194,12 @@ export function compareBlocks(prev, cur) {
     }
     if (cb.type === "reunioes") {
       [["agendadas", "Reuniões agendadas"], ["realizadas", "Reuniões realizadas"]].forEach(([k, label]) => {
+        const c = num(cb[k]), p = num(pb[k]);
+        if (c || p) facts.push(`${label}: ${fmtN(c)} (antes ${fmtN(p)}, Δ ${c - p >= 0 ? "+" : ""}${fmtN(c - p)})`);
+      });
+    }
+    if (cb.type === "leads") {
+      [["inbound", "Leads inbound"], ["remarketing", "Leads remarketing"]].forEach(([k, label]) => {
         const c = num(cb[k]), p = num(pb[k]);
         if (c || p) facts.push(`${label}: ${fmtN(c)} (antes ${fmtN(p)}, Δ ${c - p >= 0 ? "+" : ""}${fmtN(c - p)})`);
       });

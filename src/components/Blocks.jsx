@@ -190,10 +190,15 @@ function CheckBlock({ b, onChange, users, sections }) {
   );
 }
 
-/* Reuniões da semana: agendadas e realizadas lado a lado */
+/* Blocos duplos (dois números lado a lado): reuniões e leads */
+const DUAL_FIELDS = {
+  reunioes: [["agendadas", "Agendadas", "📅"], ["realizadas", "Realizadas", "🤝"]],
+  leads: [["inbound", "Inbound", "📥"], ["remarketing", "Remarketing", "🔁"]],
+};
+
 function ReunioesBlock({ b, onChange, users, sections }) {
   const campo = (key, label, emoji) => (
-    <label className="flex flex-col gap-1">
+    <label key={key} className="flex flex-col gap-1">
       <span className="text-xs font-semibold" style={{ color: "#6B7280" }}>{emoji} {label}</span>
       <input
         value={b[key] || ""}
@@ -204,11 +209,11 @@ function ReunioesBlock({ b, onChange, users, sections }) {
       />
     </label>
   );
+  const fields = DUAL_FIELDS[b.type] || DUAL_FIELDS.reunioes;
   return (
     <BlockCard title={b.title}>
       <div className="flex items-end gap-6 flex-wrap">
-        {campo("agendadas", "Agendadas", "📅")}
-        {campo("realizadas", "Realizadas", "🤝")}
+        {fields.map(([key, label, emoji]) => campo(key, label, emoji))}
       </div>
       <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
@@ -536,7 +541,7 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
     <div className="flex flex-col gap-3">
       {blocks.map((b, i) => {
         if (b.type === "metric") return <MetricBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
-        if (b.type === "reunioes") return <ReunioesBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
+        if (b.type === "reunioes" || b.type === "leads") return <ReunioesBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "check") return <CheckBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "list") return <ListBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "table") return <TableBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections}

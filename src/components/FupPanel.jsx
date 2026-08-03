@@ -72,6 +72,11 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     kpis.push({ label: "Reuniões agendadas", cur: num(rb.agendadas), prev: p ? num(p.agendadas) : null });
     kpis.push({ label: "Reuniões realizadas", cur: num(rb.realizadas), prev: p ? num(p.realizadas) : null });
   });
+  B.filter((b) => b.type === "leads").forEach((lb) => {
+    const p = findPrev(lb);
+    kpis.push({ label: "Leads inbound", cur: num(lb.inbound), prev: p ? num(p.inbound) : null });
+    kpis.push({ label: "Leads remarketing", cur: num(lb.remarketing), prev: p ? num(p.remarketing) : null });
+  });
   const realiz = findT(/VISITAS REALIZADAS/i) || findT(/REALIZADAS NA SEMANA/i, "list");
   const agend = findT(/VISITAS AGENDADAS/i, "table");
   const pipeR = findT(/PIPE REALIZADAS/i, "table");
@@ -195,8 +200,11 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   const renderReunioes = (b) => {
     // os números já estão nos KPIs do topo; o card aparece se houver comentário
     if (!(b.comment || "").trim() && !showEmpty) return null;
+    const sub = b.type === "leads"
+      ? `${b.inbound || 0} inbound · ${b.remarketing || 0} remarketing`
+      : `${b.agendadas || 0} agendadas · ${b.realizadas || 0} realizadas`;
     return (
-      <Card key={b.id} title={b.title} sub={`${b.agendadas || 0} agendadas · ${b.realizadas || 0} realizadas`}>
+      <Card key={b.id} title={b.title} sub={sub}>
         <Comment b={b} />
       </Card>
     );
@@ -274,7 +282,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
           if (b.type === "text") return renderText(b);
           if (b.type === "fup") return renderFup(b);
           if (b.type === "consolidado") return renderConsolidado(b);
-          if (b.type === "reunioes") return renderReunioes(b);
+          if (b.type === "reunioes" || b.type === "leads") return renderReunioes(b);
           return null;
         })}
       </div>

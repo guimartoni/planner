@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, upgradeReunioes, upgradeVisitas } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -70,12 +70,14 @@ function prepareData(data) {
     m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
     changed = true;
   }
-  // Inbound: bloco duplo de reuniões (agendadas · realizadas) + consolidado no topo
+  // Inbound: blocos duplos (reuniões, leads) + consolidado no topo
   if (iIdx >= 0) {
     let def = m.templates[iIdx].blocksDef || [];
     let mudou = false;
     const def2 = upgradeReunioes(def);
     if (def2 !== def) { def = def2; mudou = true; }
+    const def3 = upgradeLeads(def);
+    if (def3 !== def) { def = def3; mudou = true; }
     if (!def.some((b) => b.type === "consolidado")) { def = [CONSOLIDADO_BLOCK(), ...def]; mudou = true; }
     if (mudou) {
       m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
@@ -254,7 +256,7 @@ export default function Planner() {
       if (tpl && tpl.v === 2) {
         let blocks = b.blocks;
         if (/inbound/i.test(tpl.name || "")) {
-          blocks = upgradeReunioes(blocks);
+          blocks = upgradeLeads(upgradeReunioes(blocks));
           if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
         }
         if (/farming/i.test(tpl.name || "")) blocks = upgradeVisitas(blocks);
@@ -516,6 +518,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       const blocks = n.id === curId ? curBlocks : (loadBody(n.id) || {}).blocks;
       (blocks || []).forEach((b) => {
         if (b.type === "reunioes") acc.reunioes += num(b.realizadas);
+        if (b.type === "leads") { acc.leadsIn += num(b.inbound); acc.leadsRem += num(b.remarketing); }
         if (b.type === "metric") {
           if (/REALIZADAS|REUNIÕES DA SEMANA/i.test(b.title || "")) acc.reunioes += num(b.value);
           else if (/LEADS INBOUND/i.test(b.title || "")) acc.leadsIn += num(b.value);
@@ -953,7 +956,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       if (tpl.v === 2 && pb && pb.blocks) {
         blocks = JSON.parse(JSON.stringify(pb.blocks));
         if (/inbound/i.test(tpl.name || "")) {
-          blocks = upgradeReunioes(blocks);
+          blocks = upgradeLeads(upgradeReunioes(blocks));
           if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
         }
         if (/farming/i.test(tpl.name || "")) blocks = upgradeVisitas(blocks);

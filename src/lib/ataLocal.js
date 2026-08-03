@@ -76,6 +76,15 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
           decisoes.push(`${t}: sem informações${obs}`);
         }
       }
+      if (b.type === "leads") {
+        const li = String(b.inbound || "").trim(), lr = String(b.remarketing || "").trim();
+        if (li || lr) {
+          decisoes.push(`${t}: ${li || 0} lead(s) inbound, ${lr || 0} de remarketing${obs}`);
+          stats.push(`${li || 0} leads inbound e ${lr || 0} de remarketing`);
+        } else {
+          decisoes.push(`${t}: sem informações${obs}`);
+        }
+      }
       if (b.type === "metric") {
         if (String(b.value || "").trim()) {
           decisoes.push(`${t}: ${b.value}${obs}`);
