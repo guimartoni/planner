@@ -284,14 +284,16 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
     }
   };
   /* Colunas de texto esticam para preencher o cartão; número/data têm largura fixa */
+  /* Café da manhã e Visitas usam data livre (digite "início de agosto", "semana que vem"…);
+     nos demais, coluna "Data" abre o calendário */
+  const isDateCol = (ci) => /\bdata\b/i.test((b.cols || [])[ci] || "") && !/CAFÉ|CAFE|VISITAS/i.test(b.title || "");
   const colStyle = (ci) => {
     const c = (b.cols || [])[ci] || "";
     if (ci === 0) return { flex: "1 1 200px", minWidth: 170 };
-    if (/\bdata\b/i.test(c)) return { width: 150, flexShrink: 0 };
-    if (/observa|pend|próximo|passo|tema|assunto|coment|previs/i.test(c)) return { flex: "1 1 170px", minWidth: 140 };
+    if (isDateCol(ci)) return { width: 150, flexShrink: 0 };
+    if (/observa|pend|próximo|passo|tema|assunto|coment|previs|\bdata\b/i.test(c)) return { flex: "1 1 170px", minWidth: 140 };
     return { width: 130, flexShrink: 0 };
   };
-  const isDateCol = (ci) => /\bdata\b/i.test((b.cols || [])[ci] || "");
   /* Soma da coluna de volume (R$ M) direto no título */
   const numV = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
   const fmtV = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
@@ -506,10 +508,6 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
   // "virou realizada": mover linha para o bloco de realizadas correspondente
   const promoteTargets = (b) => {
     if (b.type !== "table") return null;
-    if (/VISITAS AGENDADAS/i.test(b.title)) {
-      const dest = blocks.find((x) => x.type === "list" && /REALIZADAS/i.test(x.title));
-      return dest ? { dest, kind: "list", label: "Marcar como realizada" } : null;
-    }
     if (/A REALIZAR/i.test(b.title) && /CALL/i.test(b.title)) {
       const dest = blocks.find((x) => x.type === "table" && /REALIZADAS/i.test(x.title) && /CALL|PIPE/i.test(x.title));
       return dest ? { dest, kind: "table", label: "Marcar como realizada" } : null;

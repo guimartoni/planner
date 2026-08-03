@@ -5,7 +5,7 @@ import { C } from "../lib/util.js";
 /* Gravador de reunião presencial: MediaRecorder captura o áudio do microfone
    enquanto o reconhecimento de voz do navegador (Chrome/Edge) transcreve ao
    vivo em pt-BR. Tudo gratuito e local — nada sai do navegador até o upload. */
-export default function Recorder({ onFinish, busy }) {
+export default function Recorder({ onFinish, busy, noteId }) {
   const [rec, setRec] = useState(false);
   const [secs, setSecs] = useState(0);
   const [live, setLive] = useState("");
@@ -20,6 +20,7 @@ export default function Recorder({ onFinish, busy }) {
   const streamRef = useRef(null);
   const wakeRef = useRef(null);
   const startTsRef = useRef(0);
+  const startNoteRef = useRef(null); // página onde a gravação COMEÇOU
 
   const supported = typeof window !== "undefined" && navigator.mediaDevices && window.MediaRecorder;
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -61,6 +62,7 @@ export default function Recorder({ onFinish, busy }) {
       }
       try { wakeRef.current = await navigator.wakeLock?.request("screen"); } catch (e2) {}
       startTsRef.current = Date.now();
+      startNoteRef.current = noteId || null;
       recRef.current = true;
       setRec(true);
       timerRef.current = setInterval(() => setSecs(Math.round((Date.now() - startTsRef.current) / 1000)), 1000);
@@ -82,7 +84,7 @@ export default function Recorder({ onFinish, busy }) {
       if (cancel) return;
       const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
       const durationSec = Math.round((Date.now() - startTsRef.current) / 1000);
-      onFinish({ blob, transcript: finalRef.current.trim(), durationSec });
+      onFinish({ blob, transcript: finalRef.current.trim(), durationSec, noteId: startNoteRef.current });
     };
     try { mr.stop(); } catch (e) {}
   };

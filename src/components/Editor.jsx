@@ -229,7 +229,7 @@ export default function Editor({
             {tplSaved ? "✓ Modelo salvo" : "Salvar como modelo"}
           </button>
         )}
-        <Recorder onFinish={onRecording} busy={recBusy} />
+        <Recorder onFinish={onRecording} busy={recBusy} noteId={noteMeta.id} />
         <button onClick={() => anexoRef.current && anexoRef.current.click()}
           className="px-3 py-1.5 rounded-lg text-sm" style={{ color: "#4B5563", background: "#E2E5E9" }}
           title="Anexar arquivo (PDF, planilha etc.) — fica na pasta planner-arquivos do OneDrive">

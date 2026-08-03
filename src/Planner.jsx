@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, upgradeReunioes } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, upgradeReunioes, upgradeVisitas } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -91,6 +91,17 @@ function prepareData(data) {
     const expIds = new Set(expirados.map((t) => t.id));
     m = { ...m, trash: m.trash.filter((t) => !expIds.has(t.id)) };
     changed = true;
+  }
+
+  // Farming: coluna Cidade/UF nas Visitas a Agendar do modelo já existente
+  const fIdx2 = m.templates.findIndex((t) => t.v === 2 && /farming/i.test(t.name));
+  if (fIdx2 >= 0) {
+    const def = m.templates[fIdx2].blocksDef || [];
+    const def2 = upgradeVisitas(def);
+    if (def2 !== def) {
+      m = { ...m, templates: m.templates.map((t, i) => (i === fIdx2 ? { ...t, blocksDef: def2 } : t)) };
+      changed = true;
+    }
   }
 
   // FUP Murilo (segundas): garante o bloco no fim dos três modelos de FUP já existentes
@@ -246,6 +257,7 @@ export default function Planner() {
           blocks = upgradeReunioes(blocks);
           if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
         }
+        if (/farming/i.test(tpl.name || "")) blocks = upgradeVisitas(blocks);
         const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
         if (missing.length || blocks !== b.blocks) {
           b = { ...b, blocks: [...blocks, ...missing.map((tb) => ({ ...JSON.parse(JSON.stringify(tb)), id: uid() }))] };
@@ -336,8 +348,10 @@ export default function Planner() {
   /* ---------- gravação de reunião: áudio + transcrição + resumo ---------- */
   const [recBusy, setRecBusy] = useState(false);
 
-  const finishRecording = async ({ blob, transcript }) => {
-    const nId = noteIdRef.current;
+  const finishRecording = async ({ blob, transcript, noteId: startId }) => {
+    // salva sempre na página onde a gravação COMEÇOU, mesmo que o usuário
+    // tenha navegado para outra página durante a reunião
+    const nId = startId || noteIdRef.current;
     if (!nId) return;
     setRecBusy(true);
     try {
@@ -942,6 +956,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           blocks = upgradeReunioes(blocks);
           if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
         }
+        if (/farming/i.test(tpl.name || "")) blocks = upgradeVisitas(blocks);
         // blocos que entraram no modelo depois também aparecem na página clonada
         (tpl.blocksDef || []).forEach((tb) => {
           if (!blocks.some((b) => b.title === tb.title)) blocks.push({ ...JSON.parse(JSON.stringify(tb)), id: uid() });

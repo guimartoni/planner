@@ -8,7 +8,7 @@ export const FUP_MURILO_BLOCK = () => (
 export const FARMING_BLOCKS = () => ([
   { id: uid(), type: "list", title: "📍 VISITAS REALIZADAS NA SEMANA", rows: [] },
   { id: uid(), type: "table", title: "📅 VISITAS AGENDADAS", cols: ["Incorporadora", "Data", "Cidade/UF"], rows: [] },
-  { id: uid(), type: "table", title: "🔜 VISITAS A AGENDAR", cols: ["Incorporadora", "Previsão", "Observação"], rows: [] },
+  { id: uid(), type: "table", title: "🔜 VISITAS A AGENDAR", cols: ["Incorporadora", "Previsão", "Cidade/UF", "Observação"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS DE PIPE REALIZADAS", cols: ["Incorporadora", "Nº operações", "Pendência"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS DE PIPE A REALIZAR", cols: ["Incorporadora", "Observação"], rows: [] },
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
@@ -105,6 +105,23 @@ export const PARCERIAS_BLOCKS = () => ([
   { id: uid(), type: "text", title: "📌 COMENTÁRIOS GERAIS", text: "" },
   FUP_MURILO_BLOCK(),
 ]);
+
+/* Migração: acrescenta a coluna Cidade/UF nas Visitas a Agendar do Farming,
+   preservando as linhas já digitadas. */
+export function upgradeVisitas(blocks) {
+  const src = blocks || [];
+  const i = src.findIndex((b) => b.type === "table" && /VISITAS A AGENDAR/i.test(b.title || ""));
+  if (i < 0) return blocks;
+  const b = src[i];
+  if ((b.cols || []).some((c) => /cidade/i.test(c))) return blocks;
+  const pos = 2; // depois de "Previsão"
+  const cols = [...(b.cols || [])];
+  cols.splice(pos, 0, "Cidade/UF");
+  const rows = (b.rows || []).map((r) => { const nr = [...r]; nr.splice(pos, 0, ""); return nr; });
+  const out = [...src];
+  out[i] = { ...b, cols, rows };
+  return out;
+}
 
 /* Fatos objetivos comparando os blocos desta semana com os da anterior —
    alimenta o comparativo da ata gerada pela IA. */
