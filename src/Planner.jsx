@@ -663,25 +663,48 @@ export default function Planner() {
     history.replaceState(null, "", location.pathname + location.search + (noteId ? "#p=" + noteId : ""));
   }, [noteId, phase]);
 
-  /* ---------- abas internas: páginas abertas lado a lado dentro do app ---------- */
+  /* ---------- abas internas: páginas OU áreas abertas dentro do app ----------
+     Cada item é {t: "note"|"nb", id}; entradas antigas (só o id) viram "note". */
   const [tabs, setTabs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("planner-tabs-v1")) || []; } catch (e) { return []; }
+    try {
+      const raw = JSON.parse(localStorage.getItem("planner-tabs-v1")) || [];
+      return raw.map((x) => (typeof x === "string" ? { t: "note", id: x } : x)).filter((x) => x && x.id);
+    } catch (e) { return []; }
   });
   useEffect(() => { try { localStorage.setItem("planner-tabs-v1", JSON.stringify(tabs)); } catch (e) {} }, [tabs]);
 
+  const pickNotebook = (id) => {
+    const nb = (metaRef.current || meta).notebooks.find((n) => n.id === id);
+    if (!nb) return;
+    const s0 = nb.sections[0] || null;
+    setNbId(id);
+    setSecId(s0 ? s0.id : null);
+    setNoteId(s0 && s0.notes.length ? s0.notes[0].id : null);
+    setView("editor");
+  };
+
   const openInTab = (nId) => {
-    setTabs((t) => (t.includes(nId) ? t : [...t, nId]));
+    setTabs((ts) => (ts.some((x) => x.t === "note" && x.id === nId) ? ts : [...ts, { t: "note", id: nId }]));
     goToNote(nId);
   };
-  const closeTab = (nId) => setTabs((t) => t.filter((x) => x !== nId));
+  const openNbInTab = (id) => {
+    setTabs((ts) => (ts.some((x) => x.t === "nb" && x.id === id) ? ts : [...ts, { t: "nb", id }]));
+    pickNotebook(id);
+  };
+  const closeTab = (tab) => setTabs((ts) => ts.filter((x) => !(x.t === tab.t && x.id === tab.id)));
 
   const tabsInfo = useMemo(() => {
     if (!meta) return [];
     const out = [];
-    tabs.forEach((id) => {
-      meta.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
-        if (n.id === id) out.push(n);
-      })));
+    tabs.forEach((tb) => {
+      if (tb.t === "nb") {
+        const nb = meta.notebooks.find((n) => n.id === tb.id);
+        if (nb) out.push({ t: "nb", id: tb.id, label: nb.name });
+      } else {
+        meta.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+          if (n.id === tb.id) out.push({ t: "note", id: tb.id, label: n.title || "Página sem nome" });
+        })));
+      }
     });
     return out;
   }, [tabs, meta]);
@@ -1210,7 +1233,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           setSecId(s0 ? s0.id : null);
           setNoteId(s0 && s0.notes.length ? s0.notes[0].id : null);
           setView("editor");
-        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} onReorder={reorderNotebooks} />
+        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} onReorder={reorderNotebooks} onOpenTab={openNbInTab} />
         <div className="flex-1" />
         <button onClick={syncNow} className="p-2 rounded-lg text-white" style={{ background: C.inkSoft }} title="Sincronizar com o OneDrive">
           <RefreshCw size={15} className={syncing ? "animate-spin" : ""} />
@@ -1261,20 +1284,26 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       {tabsInfo.length > 0 && (
         <div className="flex items-center gap-1 px-2 pt-1.5 overflow-x-auto shrink-0 border-b"
           style={{ background: "#DDE1E6", borderColor: C.line }}>
-          {tabsInfo.map((n) => (
-            <div key={n.id}
-              onClick={() => { goToNote(n.id); setShowSide(false); }}
-              className="flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-t-lg text-xs cursor-pointer whitespace-nowrap shrink-0"
-              style={n.id === noteId && view === "editor"
-                ? { background: C.appBg, color: "#1F2937", fontWeight: 600 }
-                : { background: "#EAECEF", color: "#4B5563" }}>
-              <span className="truncate" style={{ maxWidth: 150 }}>{n.title || "Página sem nome"}</span>
-              <button onClick={(e) => { e.stopPropagation(); closeTab(n.id); }}
-                className="p-0.5 rounded-full" title="Fechar aba" style={{ color: "#9CA3AF" }}>
-                <X size={11} />
-              </button>
-            </div>
-          ))}
+          {tabsInfo.map((tb) => {
+            const active = view === "editor" && (tb.t === "note"
+              ? tb.id === noteId
+              : notebook?.id === tb.id && !tabsInfo.some((x) => x.t === "note" && x.id === noteId));
+            return (
+              <div key={tb.t + tb.id}
+                onClick={() => { (tb.t === "note" ? goToNote(tb.id) : pickNotebook(tb.id)); setShowSide(false); }}
+                className="flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-t-lg text-xs cursor-pointer whitespace-nowrap shrink-0"
+                style={active
+                  ? { background: C.appBg, color: "#1F2937", fontWeight: 600 }
+                  : { background: "#EAECEF", color: "#4B5563" }}>
+                {tb.t === "nb" && <span>📂</span>}
+                <span className="truncate" style={{ maxWidth: 150 }}>{tb.label}</span>
+                <button onClick={(e) => { e.stopPropagation(); closeTab(tb); }}
+                  className="p-0.5 rounded-full" title="Fechar aba" style={{ color: "#9CA3AF" }}>
+                  <X size={11} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1626,7 +1655,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
 }
 
 /* ------------------------------------------------------------------ */
-function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder }) {
+function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder, onOpenTab }) {
   const [adding, setAdding] = useState(false);
   const [val, setVal] = useState("");
   const [editId, setEditId] = useState(null);
@@ -1656,7 +1685,8 @@ function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder
             onDragOver={(e) => { if (dragId && dragId !== nb.id && !nb.daily) e.preventDefault(); }}
             onDrop={(e) => { e.preventDefault(); if (dragId && dragId !== nb.id && !nb.daily) onReorder(dragId, nb.id); setDragId(null); }}
             onDragEnd={() => setDragId(null)}
-            title={nb.daily ? undefined : "Segure e arraste para reordenar"}
+            onContextMenu={(e) => { e.preventDefault(); onOpenTab(nb.id); }}
+            title={nb.daily ? "Botão direito abre em aba" : "Segure e arraste para reordenar · botão direito abre em aba"}
             className="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5"
             style={{
               ...(nb.id === nbId ? { background: "#F5F6F8", color: C.ink, fontWeight: 600 } : { color: "#B8BFCC" }),
