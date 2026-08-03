@@ -10,8 +10,9 @@ import { FARMING_BLOCKS, INBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK } fr
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
-import { deleteFile, ensureFolder, readJsonFile, uploadBinaryFile } from "./onedrive.js";
+import { deleteFile, ensureFolder, getDownloadUrl, readJsonFile, uploadBinaryFile, uploadLargeFile } from "./onedrive.js";
 import { imgPath, prepareImage } from "./components/PageImages.jsx";
+import { filePath } from "./components/PageFiles.jsx";
 import { usePlannerData } from "./store.js";
 import AtaDocument from "./components/AtaDocument.jsx";
 import Avatar from "./components/Avatar.jsx";
@@ -264,6 +265,50 @@ export default function Planner() {
     if (im) deleteFile(imgPath(im)).catch(() => {});
   };
 
+  /* ---------- arquivos anexados (em /planner-arquivos no OneDrive) ---------- */
+  const [fileBusy, setFileBusy] = useState(0);
+
+  const addFileToNote = async (file) => {
+    const nId = noteIdRef.current;
+    if (!nId || !file) return;
+    if (file.size > 50 * 1024 * 1024) { window.alert(`"${file.name}" é muito grande — o limite é 50 MB.`); return; }
+    setFileBusy((v) => v + 1);
+    try {
+      const id = uid();
+      const name = (file.name || "arquivo").normalize("NFC")
+        .replace(/[^\wÀ-ÿ.\-]+/g, "-").replace(/-{2,}/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 80) || "arquivo";
+      const ref = { id, name, size: file.size };
+      await ensureFolder("planner-arquivos");
+      if (file.size <= 4 * 1024 * 1024) await uploadBinaryFile(filePath(ref), file, file.type || "application/octet-stream");
+      else await uploadLargeFile(filePath(ref), file);
+      if (noteIdRef.current === nId) {
+        patchBody((b) => ({ files: [...((b && b.files) || []), ref] }));
+      } else {
+        const b = loadBody(nId) || { content: "", transcript: "", structured: null };
+        saveBody(nId, { ...b, files: [...(b.files || []), ref] });
+      }
+    } catch (e) {
+      window.alert("Não consegui enviar o arquivo — verifique a internet e tente de novo.");
+    }
+    setFileBusy((v) => v - 1);
+  };
+
+  const openFileFromNote = async (f) => {
+    try {
+      const url = await getDownloadUrl(filePath(f));
+      if (url) window.open(url, "_blank");
+      else window.alert("Arquivo não encontrado no OneDrive — pode ter sido movido ou apagado.");
+    } catch (e) {
+      window.alert("Não consegui abrir o arquivo — verifique a internet.");
+    }
+  };
+
+  const removeFileFromNote = (id) => {
+    const f = ((body && body.files) || []).find((x) => x.id === id);
+    patchBody((b) => ({ files: (b.files || []).filter((x) => x.id !== id) }));
+    if (f) deleteFile(filePath(f)).catch(() => {});
+  };
+
   const patchNoteMeta = (patch) => {
     setMeta((m) => ({
       ...m,
@@ -500,17 +545,21 @@ export default function Planner() {
     });
   };
 
-  const purgeNote = (id) => {
+  const purgeAttachments = (id) => {
     const b = loadBody(id);
     ((b && b.images) || []).forEach((im) => { deleteFile(imgPath(im)).catch(() => {}); });
+    ((b && b.files) || []).forEach((f) => { deleteFile(filePath(f)).catch(() => {}); });
+  };
+
+  const purgeNote = (id) => {
+    purgeAttachments(id);
     deleteBodyKey(id);
     setMeta((m) => ({ ...m, trash: (m.trash || []).filter((t) => t.id !== id) }));
   };
 
   const emptyTrash = () => {
     (metaRef.current?.trash || []).forEach((t) => {
-      const b = loadBody(t.id);
-      ((b && b.images) || []).forEach((im) => { deleteFile(imgPath(im)).catch(() => {}); });
+      purgeAttachments(t.id);
       deleteBodyKey(t.id);
     });
     setMeta((m) => ({ ...m, trash: [] }));
@@ -1355,7 +1404,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
             <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" color={C.ink} /></div>
           ) : noteMeta.concluded && body.structured ? (
             <AtaDocument body={body} tasks={(meta.tasks || []).filter((t) => t.noteId === noteId)} meta={meta}
-              prevBlocks={prevBlocks}
+              prevBlocks={prevBlocks} onOpenFile={openFileFromNote}
               onReopen={() => patchNoteMeta({ concluded: false })} />
           ) : (
             <Editor
@@ -1382,6 +1431,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               onConclude={concludeAta}
               iaState={iaState}
               onImage={addImageToNote} onRemoveImage={removeImageFromNote} imgBusy={imgBusy > 0}
+              onFile={addFileToNote} onOpenFile={openFileFromNote} onRemoveFile={removeFileFromNote} fileBusy={fileBusy > 0}
             />
           )}
         </main>

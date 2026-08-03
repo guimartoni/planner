@@ -6,17 +6,20 @@ import Avatar from "./Avatar.jsx";
 import { BlocksEditor } from "./Blocks.jsx";
 import FupPanel from "./FupPanel.jsx";
 import PageImages from "./PageImages.jsx";
+import PageFiles from "./PageFiles.jsx";
 
 export default function Editor({
   noteMeta, body, users, sections, prevBlocks, tplInfo, tplSiblings,
   onGoNote, onSaveTemplate, onTitle, onMeta, onBody, saveState,
   onConclude, iaState, onImage, onRemoveImage, imgBusy,
+  onFile, onOpenFile, onRemoveFile, fileBusy,
 }) {
   const [tplSaved, setTplSaved] = useState(false);
   const [viewMode, setViewMode] = useState("edit"); // edit | panel
   const taRef = useRef(null);
   const bgRef = useRef(null);
   const fileRef = useRef(null);
+  const anexoRef = useRef(null);
   const [mentionQ, setMentionQ] = useState(null);
   const [tagQ, setTagQ] = useState(null);
   const [datePick, setDatePick] = useState(false);
@@ -211,6 +214,16 @@ export default function Editor({
             {tplSaved ? "✓ Modelo salvo" : "Salvar como modelo"}
           </button>
         )}
+        <button onClick={() => anexoRef.current && anexoRef.current.click()}
+          className="px-3 py-1.5 rounded-lg text-sm" style={{ color: "#4B5563", background: "#E2E5E9" }}
+          title="Anexar arquivo (PDF, planilha etc.) — fica na pasta planner-arquivos do OneDrive">
+          📎 Anexar
+        </button>
+        <input ref={anexoRef} type="file" multiple className="hidden"
+          onChange={(e) => {
+            [...(e.target.files || [])].forEach((f) => onFile && onFile(f));
+            e.target.value = "";
+          }} />
         <div className="flex-1" />
         <button onClick={onConclude} disabled={iaBusy}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold text-white"
@@ -304,11 +317,14 @@ export default function Editor({
 
           <div className="relative rounded-xl border shadow-sm" style={{ borderColor: C.line, background: C.paper }}
             onDragOver={(e) => {
-              if ([...(e.dataTransfer?.items || [])].some((i) => i.type && i.type.startsWith("image/"))) e.preventDefault();
+              if ([...(e.dataTransfer?.items || [])].some((i) => i.kind === "file")) e.preventDefault();
             }}
             onDrop={(e) => {
-              const fs = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith("image/"));
-              if (fs.length) { e.preventDefault(); fs.forEach((f) => onImage && onImage(f)); }
+              const fs = [...(e.dataTransfer?.files || [])];
+              if (fs.length) {
+                e.preventDefault();
+                fs.forEach((f) => (f.type.startsWith("image/") ? onImage && onImage(f) : onFile && onFile(f)));
+              }
             }}>
             <div
               ref={bgRef}
@@ -400,6 +416,9 @@ export default function Editor({
         images={body.images} busy={imgBusy}
         onResize={(id, w) => onBody((b) => ({ images: (b.images || []).map((im) => (im.id === id ? { ...im, w } : im)) }))}
         onRemove={(id) => onRemoveImage && onRemoveImage(id)} />
+
+      <PageFiles files={body.files} busy={fileBusy}
+        onOpen={onOpenFile} onRemove={(id) => onRemoveFile && onRemoveFile(id)} />
 
       {(body.routed || []).length > 0 && (
         <p className="mt-3 text-xs flex items-center gap-1" style={{ color: C.stamp }}>

@@ -68,6 +68,41 @@ export async function uploadBinaryFile(path, blob, contentType) {
   return await res.json();
 }
 
+/* Envia arquivos maiores que 4MB em pedaços (sessão de upload do Graph). */
+export async function uploadLargeFile(path, blob) {
+  const sess = await graphFetch(`${GRAPH}/me/drive/root:${path}:/createUploadSession`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } }),
+  });
+  if (!sess.ok) throw new Error(`Erro ao iniciar envio de ${path} (HTTP ${sess.status})`);
+  const { uploadUrl } = await sess.json();
+  const CHUNK = 320 * 1024 * 16; // 5MB, múltiplo de 320KB como o Graph exige
+  let pos = 0;
+  let item = null;
+  while (pos < blob.size) {
+    const end = Math.min(pos + CHUNK, blob.size);
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Range": `bytes ${pos}-${end - 1}/${blob.size}` },
+      body: blob.slice(pos, end),
+    });
+    if (!res.ok) throw new Error(`Erro no envio de ${path} (HTTP ${res.status})`);
+    if (res.status === 200 || res.status === 201) item = await res.json();
+    pos = end;
+  }
+  return item;
+}
+
+/* Link temporário de download direto (pré-autenticado) de um arquivo. */
+export async function getDownloadUrl(path) {
+  const res = await graphFetch(`${GRAPH}/me/drive/root:${path}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Erro ao localizar ${path} (HTTP ${res.status})`);
+  const item = await res.json();
+  return item["@microsoft.graph.downloadUrl"] || null;
+}
+
 /* Baixa um arquivo binário e devolve uma URL local para usar em <img>.
    Retorna null se não existir. */
 export async function readFileAsObjectUrl(path) {

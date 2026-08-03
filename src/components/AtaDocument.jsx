@@ -6,6 +6,7 @@ import { ataToPdf } from "../pdf.js";
 import Avatar from "./Avatar.jsx";
 import FupPanel from "./FupPanel.jsx";
 import PageImages from "./PageImages.jsx";
+import PageFiles from "./PageFiles.jsx";
 
 const Sec = ({ label, children }) => (
   <div className="mb-4">
@@ -14,7 +15,7 @@ const Sec = ({ label, children }) => (
   </div>
 );
 
-export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen }) {
+export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, onOpenFile }) {
   const [copied, setCopied] = useState(null); // 'plain' | 'whats'
   const [pdfBusy, setPdfBusy] = useState(false);
   const printRef = useRef(null);
@@ -65,6 +66,12 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
               <p className="text-sm font-semibold mb-1.5" style={{ color: "#E6E8EB" }}>📝 Resumo</p>
               <p className="text-sm leading-6" style={{ color: "#B7BDC6" }}>{s0.resumo}</p>
             </div>
+          </div>
+        )}
+        {((body.images || []).length > 0 || (body.files || []).length > 0) && (
+          <div className="rounded-xl border p-4 mt-3" style={{ borderColor: C.line, background: "#fff" }}>
+            <PageImages images={body.images} readOnly />
+            <PageFiles files={body.files} readOnly onOpen={onOpenFile} />
           </div>
         )}
         {openT.length > 0 && (
@@ -165,6 +172,11 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen })
         {(body.images || []).length > 0 && (
           <Sec label="Imagens">
             <PageImages images={body.images} readOnly />
+          </Sec>
+        )}
+        {(body.files || []).length > 0 && (
+          <Sec label="Arquivos anexados">
+            <PageFiles files={body.files} readOnly onOpen={onOpenFile} />
           </Sec>
         )}
         {tasks.length > 0 && (
