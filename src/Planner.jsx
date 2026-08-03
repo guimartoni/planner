@@ -418,6 +418,19 @@ export default function Planner() {
     setMeta((m) => ({ ...m, notebooks: m.notebooks.map((nb) => (nb.id === id ? { ...nb, name } : nb)) }));
   };
 
+  /* Reordenar abas arrastando: solta a aba em cima de outra e ela assume aquele lugar */
+  const reorderNotebooks = (fromId, toId) => {
+    setMeta((m) => {
+      const arr = [...m.notebooks];
+      const fi = arr.findIndex((x) => x.id === fromId);
+      const ti = arr.findIndex((x) => x.id === toId);
+      if (fi < 0 || ti < 0 || fi === ti) return m;
+      const [moved] = arr.splice(fi, 1);
+      arr.splice(ti, 0, moved);
+      return { ...m, notebooks: arr };
+    });
+  };
+
   const renameSection = (id, name) => {
     setMeta((m) => ({
       ...m,
@@ -1197,7 +1210,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           setSecId(s0 ? s0.id : null);
           setNoteId(s0 && s0.notes.length ? s0.notes[0].id : null);
           setView("editor");
-        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} />
+        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} onReorder={reorderNotebooks} />
         <div className="flex-1" />
         <button onClick={syncNow} className="p-2 rounded-lg text-white" style={{ background: C.inkSoft }} title="Sincronizar com o OneDrive">
           <RefreshCw size={15} className={syncing ? "animate-spin" : ""} />
@@ -1613,11 +1626,12 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
 }
 
 /* ------------------------------------------------------------------ */
-function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete }) {
+function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder }) {
   const [adding, setAdding] = useState(false);
   const [val, setVal] = useState("");
   const [editId, setEditId] = useState(null);
   const [editVal, setEditVal] = useState("");
+  const [dragId, setDragId] = useState(null);
 
   const commitEdit = () => {
     if (editId && editVal.trim()) onRename(editId, editVal.trim());
@@ -1637,8 +1651,17 @@ function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete }) {
             className="px-2 py-1 rounded text-sm w-32 outline-none shrink-0" style={{ background: "#fff", color: C.ink }} />
         ) : (
           <button key={nb.id} onClick={() => onPick(nb.id)}
+            draggable={!nb.daily}
+            onDragStart={(e) => { if (nb.daily) return; setDragId(nb.id); e.dataTransfer.effectAllowed = "move"; }}
+            onDragOver={(e) => { if (dragId && dragId !== nb.id && !nb.daily) e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); if (dragId && dragId !== nb.id && !nb.daily) onReorder(dragId, nb.id); setDragId(null); }}
+            onDragEnd={() => setDragId(null)}
+            title={nb.daily ? undefined : "Segure e arraste para reordenar"}
             className="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5"
-            style={nb.id === nbId ? { background: "#F5F6F8", color: C.ink, fontWeight: 600 } : { color: "#B8BFCC" }}>
+            style={{
+              ...(nb.id === nbId ? { background: "#F5F6F8", color: C.ink, fontWeight: 600 } : { color: "#B8BFCC" }),
+              opacity: dragId === nb.id ? 0.4 : 1,
+            }}>
             {nb.name}
             {nb.id === nbId && (
               <span onClick={(e) => { e.stopPropagation(); setEditId(nb.id); setEditVal(nb.name); }}
