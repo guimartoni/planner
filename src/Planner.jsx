@@ -538,15 +538,19 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
   };
 
   useEffect(() => {
-    if (!body || !body.blocks || !noteMeta) return;
+    // bodyFor !== noteId: o corpo carregado ainda é o da página anterior
+    // (acontece ao trocar de tema/aba) — não mexer para não corromper nada
+    if (!body || !body.blocks || !noteMeta || bodyFor !== noteId) return;
     const ci = body.blocks.findIndex((x) => x.type === "consolidado");
     if (ci < 0) return;
     const mes = noteMeta.mes || mesDe(noteMeta.createdAt);
     const vals = computeConsolidado(noteMeta.templateId, mes, noteMeta.id, body.blocks);
     const cur = body.blocks[ci];
     if (cur.mes === mes && JSON.stringify(cur.vals) === JSON.stringify(vals)) return;
-    patchBody((b) => ({ blocks: b.blocks.map((x, i) => (i === ci ? { ...x, mes, vals } : x)) }));
-  }, [body && body.blocks, noteMeta && noteMeta.mes, noteId, cloudPhase]); // eslint-disable-line
+    patchBody((b) => (b && b.blocks
+      ? { blocks: b.blocks.map((x, i) => (i === ci ? { ...x, mes, vals } : x)) }
+      : {}));
+  }, [body && body.blocks, noteMeta && noteMeta.mes, noteId, bodyFor, cloudPhase]); // eslint-disable-line
 
   const syncDraftTasks = () => {
     if (!body || !noteMeta || !notebook) return;
