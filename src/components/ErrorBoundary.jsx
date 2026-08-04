@@ -41,8 +41,9 @@ export default class ErrorBoundary extends Component {
         }}>
           Recarregar o app
         </button>
-        <p style={{ fontSize: 11, color: "#9CA3AF", maxWidth: 480, overflowWrap: "anywhere" }}>
-          {String(this.state.err)}
+        <p style={{ fontSize: 11, color: "#9CA3AF", maxWidth: 560, overflowWrap: "anywhere", whiteSpace: "pre-wrap", textAlign: "left" }}>
+          {String((this.state.err && this.state.err.stack) || this.state.err)
+            .split("\n").slice(0, 4).join("\n")}
         </p>
       </div>
     );

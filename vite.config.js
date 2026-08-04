@@ -6,4 +6,5 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   base: "/planner/",
   plugins: [react(), tailwindcss()],
+  build: { sourcemap: true },
 });
