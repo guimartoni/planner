@@ -40,7 +40,6 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
     };
     const whatsTxt = () => {
       let t = `*📋 ${s0.titulo || "FUP Semanal"}* — _${s0.data || ""}_\n`;
-      if (s0.resumo) t += `\n*📝 Resumo*\n${s0.resumo}\n`;
       if (openT.length) t += `\n*✅ Ações*\n${openT.map((a) => `• ${a.text}${a.userName ? " — @" + a.userName : ""}${a.date ? " (" + a.date + ")" : ""}`).join("\n")}\n`;
       t += `\n_Planner - Gui - Finamob_`;
       return t;
@@ -60,14 +59,6 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
         <div ref={printRef}>
         <FupPanel blocks={body.blocks} prevBlocks={prevBlocks} showEmpty
           header={{ title: s0.titulo || "FUP semanal", crumb: `FUP ${s0.data || ""}`, badge: "Semana atual" }} />
-        {s0.resumo && (
-          <div className="rounded-2xl p-4 mt-3" style={{ background: "#14171C" }}>
-            <div className="rounded-xl border p-4" style={{ borderColor: "#2B313A", background: "#1D2127" }}>
-              <p className="text-sm font-semibold mb-1.5" style={{ color: "#E6E8EB" }}>📝 Resumo</p>
-              <p className="text-sm leading-6" style={{ color: "#B7BDC6" }}>{s0.resumo}</p>
-            </div>
-          </div>
-        )}
         {((body.images || []).length > 0 || (body.files || []).length > 0) && (
           <div className="rounded-xl border p-4 mt-3" style={{ borderColor: C.line, background: "#fff" }}>
             <PageImages images={body.images} readOnly />
