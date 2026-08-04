@@ -6,7 +6,6 @@ import { consolidadoEff } from "../lib/blocks.js";
 export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   const num = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
   const fmtN = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
-  const norm = (s) => (s || "").trim().toLowerCase();
   const findPrev = (b) => b && (prevBlocks || []).find((x) => x.id === b.id || x.title === b.title);
   const names = (b) => ((b && b.rows) || []).map((r) => (Array.isArray(r) ? r[0] : r)).filter(Boolean);
   const colIdx = (b, re) => (b && b.cols ? b.cols.findIndex((c) => re.test(c)) : -1);
@@ -41,8 +40,6 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     ? <p className="text-xs mt-2 whitespace-pre-wrap" style={{ color: D.mut }}>💬 {b.comment.trim()}</p>
     : null);
   const SemInfo = () => <p className="text-sm italic" style={{ color: D.mut }}>— sem informações</p>;
-  const isNew = (b, name) => { const p = findPrev(b); return p ? !names(p).map(norm).includes(norm(name)) : false; };
-  const repeats = (b, name) => { const p = findPrev(b); return p ? names(p).map(norm).includes(norm(name)) : false; };
   const dSort = (rows, di) => [...rows].sort((a, b) => {
     const k = (r) => { const m = String(r[di] || "").match(/(\d{1,2})\/(\d{1,2})/); return m ? `${m[2].padStart(2, "0")}${m[1].padStart(2, "0")}` : "9999"; };
     return k(a).localeCompare(k(b));
@@ -101,8 +98,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
         {rows.length === 0 && <SemInfo />}
         {rows.map((n, i) => (
           <Row key={i} last={i === rows.length - 1}>
-            <span className="flex-1" style={{ color: D.text }}>{n}</span>
-            {isNew(b, n) && <Badge bg={D.greenBg} color={D.green}>nova</Badge>}
+            <span className="flex-1 break-words" style={{ color: D.text }}>{n}</span>
           </Row>
         ))}
         <Comment b={b} />
@@ -120,25 +116,28 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     const sub = opsCi > 0 ? `${rows.length} · ${fmtN(rows.reduce((a, r) => a + num(r[opsCi]), 0))} operações`
       : volCi > 0 ? `R$ ${fmtN(rows.reduce((a, r) => a + num(r[volCi]), 0))}M em ${rows.length}`
         : `${rows.length}`;
-    const showNew = /AGENDADAS|REALIZADAS|NOVOS/i.test(b.title);
-    const showRep = /A AGENDAR|A REALIZAR/i.test(b.title);
     return (
       <Card key={b.id} title={b.title} sub={rows.length ? sub : null}>
         {rows.length === 0 && <SemInfo />}
-        {sorted.map((r, i) => (
-          <Row key={i} last={i === sorted.length - 1}>
-            <span className="flex-1 truncate" style={{ color: D.text }}>{r[0]}</span>
-            {showNew && isNew(b, r[0]) && <Badge bg={D.greenBg} color={D.green}>nova</Badge>}
-            {showRep && repeats(b, r[0]) && <Badge bg={D.amberBg} color={D.amber}>repete</Badge>}
-            {(b.cols || []).slice(1).map((c, j) => {
-              const v = r[j + 1];
-              if (!v) return null;
-              return /pend|observa/i.test(c)
-                ? <Badge key={j} bg={D.amberBg} color={D.amber}>{v}</Badge>
-                : <span key={j} className="text-xs" style={{ color: D.sub }}>{v}</span>;
-            })}
-          </Row>
-        ))}
+        {sorted.map((r, i) => {
+          const extras = (b.cols || []).slice(1)
+            .map((c, j) => ({ c, v: String(r[j + 1] || "").trim() }))
+            .filter((x) => x.v);
+          const longas = extras.filter((x) => /pend|observa/i.test(x.c));
+          const curtas = extras.filter((x) => !/pend|observa/i.test(x.c));
+          return (
+            <div key={i} className="py-1.5 text-sm"
+              style={{ borderBottom: i === sorted.length - 1 ? "none" : `0.5px solid ${D.line}`, color: D.sub }}>
+              <div className="flex items-baseline gap-2">
+                <span className="flex-1 break-words" style={{ color: D.text }}>{r[0]}</span>
+                {curtas.map((x, j) => <span key={j} className="text-xs shrink-0" style={{ color: D.sub }}>{x.v}</span>)}
+              </div>
+              {longas.map((x, j) => (
+                <p key={j} className="text-xs mt-0.5 whitespace-pre-wrap" style={{ color: D.amber }}>↳ {x.v}</p>
+              ))}
+            </div>
+          );
+        })}
         <Comment b={b} />
       </Card>
     );
@@ -175,7 +174,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
         {[["aprovados", "aprovado", D.greenBg, D.green], ["ressalvados", "ressalvado", D.amberBg, D.amber], ["reprovados", "reprovado", D.redBg, D.red]].map(([g, label, bg, color]) =>
           (b[g] || []).map((r, i) => (
             <Row key={g + i}>
-              <span className="flex-1 truncate" style={{ color: D.text }}>{r[0]}</span>
+              <span className="flex-1 break-words" style={{ color: D.text }}>{r[0]}</span>
               <span className="text-xs font-medium" style={{ color: D.sub }}>R$ {fmtN(num(r[1]))}M</span>
               <Badge bg={bg} color={color}>{label}</Badge>
             </Row>
