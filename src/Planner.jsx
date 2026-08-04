@@ -175,6 +175,7 @@ export default function Planner() {
   const [secId, setSecId] = useState(null);
   const [noteId, setNoteId] = useState(null);
   const [body, setBody] = useState(null);
+  const [bodyFor, setBodyFor] = useState(null); // id da página a que o body carregado pertence
   const [view, setView] = useState("editor");
   const [showSide, setShowSide] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
@@ -244,7 +245,7 @@ export default function Planner() {
 
   /* ---------- abrir/salvar corpo da página ---------- */
   useEffect(() => {
-    if (!noteId) { setBody(null); return; }
+    if (!noteId) { setBody(null); setBodyFor(null); return; }
     let b = loadBody(noteId) || { content: "", transcript: "", structured: null };
     // blocos que entraram no modelo depois aparecem também em páginas de FUP
     // já criadas (só as ainda não concluídas)
@@ -268,6 +269,7 @@ export default function Planner() {
       }
     }
     setBody(b);
+    setBodyFor(noteId);
   }, [noteId, cloudPhase]); // eslint-disable-line
 
   const patchBody = (patch) => {
@@ -1686,7 +1688,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                 Criar página
               </button>
             </div>
-          ) : !body ? (
+          ) : !body || bodyFor !== noteId ? (
             <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" color={C.ink} /></div>
           ) : noteMeta.concluded && body.structured ? (
             <AtaDocument body={body} tasks={(meta.tasks || []).filter((t) => t.noteId === noteId)} meta={meta}
