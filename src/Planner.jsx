@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -95,24 +95,30 @@ function prepareData(data) {
     changed = true;
   }
 
-  // Farming: coluna Cidade/UF nas Visitas a Agendar do modelo já existente
+  // Farming: coluna Cidade/UF nas Visitas a Agendar + consolidado no topo
   const fIdx2 = m.templates.findIndex((t) => t.v === 2 && /farming/i.test(t.name));
   if (fIdx2 >= 0) {
-    const def = m.templates[fIdx2].blocksDef || [];
+    let def = m.templates[fIdx2].blocksDef || [];
+    let mudou = false;
     const def2 = upgradeVisitas(def);
-    if (def2 !== def) {
-      m = { ...m, templates: m.templates.map((t, i) => (i === fIdx2 ? { ...t, blocksDef: def2 } : t)) };
+    if (def2 !== def) { def = def2; mudou = true; }
+    if (!def.some((b) => b.type === "consolidado")) { def = [CONSOLIDADO_FARMING_BLOCK(), ...def]; mudou = true; }
+    if (mudou) {
+      m = { ...m, templates: m.templates.map((t, i) => (i === fIdx2 ? { ...t, blocksDef: def } : t)) };
       changed = true;
     }
   }
 
-  // Parcerias: bloco Live do Mês abaixo do Café da Manhã no modelo já existente
+  // Parcerias: bloco Live do Mês abaixo do Café da Manhã + consolidado no topo
   const pIdx2 = m.templates.findIndex((t) => t.v === 2 && /parceria/i.test(t.name));
   if (pIdx2 >= 0) {
-    const def = m.templates[pIdx2].blocksDef || [];
+    let def = m.templates[pIdx2].blocksDef || [];
+    let mudou = false;
     const def2 = upgradeLive(def);
-    if (def2 !== def) {
-      m = { ...m, templates: m.templates.map((t, i) => (i === pIdx2 ? { ...t, blocksDef: def2 } : t)) };
+    if (def2 !== def) { def = def2; mudou = true; }
+    if (!def.some((b) => b.type === "consolidado")) { def = [CONSOLIDADO_PARCERIAS_BLOCK(), ...def]; mudou = true; }
+    if (mudou) {
+      m = { ...m, templates: m.templates.map((t, i) => (i === pIdx2 ? { ...t, blocksDef: def } : t)) };
       changed = true;
     }
   }
@@ -271,8 +277,14 @@ export default function Planner() {
           blocks = upgradeLeads(upgradeReunioes(blocks));
           if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
         }
-        if (/farming/i.test(tpl.name || "")) blocks = upgradeVisitas(blocks);
-        if (/parceria/i.test(tpl.name || "")) blocks = upgradeLive(blocks);
+        if (/farming/i.test(tpl.name || "")) {
+          blocks = upgradeVisitas(blocks);
+          if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_FARMING_BLOCK(), ...blocks];
+        }
+        if (/parceria/i.test(tpl.name || "")) {
+          blocks = upgradeLive(blocks);
+          if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_PARCERIAS_BLOCK(), ...blocks];
+        }
         const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
         if (missing.length || blocks !== b.blocks) {
           b = { ...b, blocks: [...blocks, ...missing.map((tb) => ({ ...JSON.parse(JSON.stringify(tb)), id: uid() }))] };
@@ -525,7 +537,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
   const computeConsolidado = (tplId, mes, curId, curBlocks) => {
     const m = metaRef.current;
     const num = (s) => { const mm = String(s || "").replace(",", ".").match(/[\d.]+/); return mm ? parseFloat(mm[0]) : 0; };
-    const acc = { reunioes: 0, leadsIn: 0, leadsRem: 0, aprovados: 0, ressalvados: 0, reprovados: 0 };
+    const acc = { reunioes: 0, leadsIn: 0, leadsRem: 0, aprovados: 0, ressalvados: 0, reprovados: 0, callsClientes: 0, novosParceiros: 0, visitas: 0, callsPipe: 0 };
     m.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
       if (n.templateId !== tplId) return;
       if ((n.mes || mesDe(n.createdAt)) !== mes) return;
@@ -543,6 +555,16 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           acc.ressalvados += (b.ressalvados || []).reduce((a, r) => a + num(r[1]), 0);
           acc.reprovados += (b.reprovados || []).reduce((a, r) => a + num(r[1]), 0);
         }
+        // Parcerias: conta as linhas preenchidas de calls com clientes e novos parceiros
+        if (b.type === "table" && /CALLS REALIZADAS COM CLIENTES/i.test(b.title || ""))
+          acc.callsClientes += (b.rows || []).filter((r) => (r || []).some((c) => String(c || "").trim())).length;
+        if (b.type === "list" && /NOVOS PARCEIROS/i.test(b.title || ""))
+          acc.novosParceiros += (b.rows || []).filter((r) => String(r || "").trim()).length;
+        // Farming: conta visitas realizadas e calls de pipe realizadas
+        if (b.type === "list" && /VISITAS REALIZADAS/i.test(b.title || ""))
+          acc.visitas += (b.rows || []).filter((r) => String(r || "").trim()).length;
+        if (b.type === "table" && /CALLS DE PIPE REALIZADAS/i.test(b.title || ""))
+          acc.callsPipe += (b.rows || []).filter((r) => (r || []).some((c) => String(c || "").trim())).length;
       });
     })));
     Object.keys(acc).forEach((k) => { acc[k] = Math.round(acc[k] * 10) / 10; });
@@ -977,8 +999,14 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           blocks = upgradeLeads(upgradeReunioes(blocks));
           if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_BLOCK(), ...blocks];
         }
-        if (/farming/i.test(tpl.name || "")) blocks = upgradeVisitas(blocks);
-        if (/parceria/i.test(tpl.name || "")) blocks = upgradeLive(blocks);
+        if (/farming/i.test(tpl.name || "")) {
+          blocks = upgradeVisitas(blocks);
+          if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_FARMING_BLOCK(), ...blocks];
+        }
+        if (/parceria/i.test(tpl.name || "")) {
+          blocks = upgradeLive(blocks);
+          if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_PARCERIAS_BLOCK(), ...blocks];
+        }
         // blocos que entraram no modelo depois também aparecem na página clonada
         (tpl.blocksDef || []).forEach((tb) => {
           if (!blocks.some((b) => b.title === tb.title)) blocks.push({ ...JSON.parse(JSON.stringify(tb)), id: uid() });

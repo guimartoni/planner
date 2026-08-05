@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { C } from "../lib/util.js";
-import { consolidadoEff } from "../lib/blocks.js";
+import { consolidadoEff, consolidadoItems } from "../lib/blocks.js";
 import Avatar from "./Avatar.jsx";
 
 /* Textarea com os comandos @responsável / # prazo / !subtema — usada nos
@@ -431,14 +431,7 @@ function ConsolidadoBlock({ b, onChange }) {
   const fmtV = (n) => String(Math.round((n || 0) * 10) / 10).replace(".", ",");
   const manual = b.manual || {};
   const isMan = (k) => manual[k] !== undefined;
-  const items = [
-    ["reunioes", "🤝 Reuniões realizadas", false],
-    ["leadsIn", "📥 Leads inbound", false],
-    ["leadsRem", "🔁 Leads remarketing", false],
-    ["aprovados", "✅ SQL aprovados", true],
-    ["ressalvados", "⚠️ SQL ressalvados", true],
-    ["reprovados", "❌ SQL reprovados", true],
-  ];
+  const items = consolidadoItems(b);
   const toggle = (k) => {
     if (isMan(k)) {
       const { [k]: _drop, ...rest } = manual;
@@ -449,7 +442,7 @@ function ConsolidadoBlock({ b, onChange }) {
   };
   return (
     <BlockCard title={`${b.title}${b.mes ? ` — ${b.mes}` : ""}`}
-      hint="Somado automaticamente dos FUPs de Inbound do mês marcado no cabeçalho · toque em 🔄/✏️ para alternar entre automático e manual">
+      hint="Somado automaticamente dos FUPs do mês marcado no cabeçalho · toque em 🔄/✏️ para alternar entre automático e manual">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {items.map(([k, label, money]) => (
           <div key={k} className="rounded-lg border px-3 py-2" style={{ borderColor: "#E3E5DE", background: "#fff" }}>

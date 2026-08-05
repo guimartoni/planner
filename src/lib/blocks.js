@@ -29,6 +29,44 @@ export const CONSOLIDADO_BLOCK = () => (
   { id: uid(), type: "consolidado", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
 );
 
+/* Consolidado do mês (Parcerias): SQL do comitê + calls com clientes +
+   novos parceiros, somados de todos os FUPs do mês. */
+export const CONSOLIDADO_PARCERIAS_BLOCK = () => (
+  { id: uid(), type: "consolidado", kind: "parcerias", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
+);
+
+/* Consolidado do mês (Farming): visitas realizadas + calls de pipe + SQL do comitê. */
+export const CONSOLIDADO_FARMING_BLOCK = () => (
+  { id: uid(), type: "consolidado", kind: "farming", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
+);
+
+/* Itens exibidos num consolidado, conforme o modelo: [chave, rótulo, é dinheiro?] */
+export const consolidadoItems = (b) => {
+  const kind = (b && b.kind) || "";
+  if (kind === "parcerias") return [
+    ["aprovados", "✅ SQL aprovados", true],
+    ["ressalvados", "⚠️ SQL ressalvados", true],
+    ["reprovados", "❌ SQL reprovados", true],
+    ["callsClientes", "📞 Calls com clientes", false],
+    ["novosParceiros", "🤝 Novos parceiros", false],
+  ];
+  if (kind === "farming") return [
+    ["visitas", "📍 Visitas realizadas", false],
+    ["callsPipe", "📞 Calls de pipe realizadas", false],
+    ["aprovados", "✅ SQL aprovados", true],
+    ["ressalvados", "⚠️ SQL ressalvados", true],
+    ["reprovados", "❌ SQL reprovados", true],
+  ];
+  return [
+    ["reunioes", "🤝 Reuniões realizadas", false],
+    ["leadsIn", "📥 Leads inbound", false],
+    ["leadsRem", "🔁 Leads remarketing", false],
+    ["aprovados", "✅ SQL aprovados", true],
+    ["ressalvados", "⚠️ SQL ressalvados", true],
+    ["reprovados", "❌ SQL reprovados", true],
+  ];
+};
+
 /* Valor efetivo de um item do consolidado: o manual (✏️), se preenchido,
    senão o somado automaticamente. */
 export const consolidadoEff = (b, k) => {

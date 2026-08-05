@@ -1,4 +1,4 @@
-import { consolidadoEff } from "../lib/blocks.js";
+import { consolidadoEff, consolidadoItems } from "../lib/blocks.js";
 
 /* Painel visual do FUP — renderiza TODOS os blocos preenchidos, na ordem
    do template, com deltas vs semana anterior. Funciona para Farming,
@@ -210,14 +210,8 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   };
 
   const renderConsolidado = (b) => {
-    const items = [
-      ["Reuniões realizadas", consolidadoEff(b, "reunioes"), false],
-      ["Leads inbound", consolidadoEff(b, "leadsIn"), false],
-      ["Leads remarketing", consolidadoEff(b, "leadsRem"), false],
-      ["SQL aprovados", consolidadoEff(b, "aprovados"), true],
-      ["SQL ressalvados", consolidadoEff(b, "ressalvados"), true],
-      ["SQL reprovados", consolidadoEff(b, "reprovados"), true],
-    ];
+    const items = consolidadoItems(b).map(([k, label, money]) =>
+      [label.replace(/^\S+\s/, ""), consolidadoEff(b, k), money]);
     if (!items.some(([, val]) => val) && !showEmpty) return null;
     return (
       <Card key={b.id} title={b.title} sub={b.mes || null}>

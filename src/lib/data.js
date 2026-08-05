@@ -63,7 +63,12 @@ export function blocksToText(blocks) {
     else if (b.type === "fup") base = `${b.title}${b.date ? ` — ${b.date}` : ""}:\n${b.text || ""}`;
     else if (b.type === "consolidado") {
       const e = (k) => consolidadoEff(b, k);
-      base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
+      if (b.kind === "parcerias")
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M; calls com clientes ${e("callsClientes")}; novos parceiros ${e("novosParceiros")}`;
+      else if (b.kind === "farming")
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: visitas realizadas ${e("visitas")}; calls de pipe realizadas ${e("callsPipe")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
+      else
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
     }
     else if (b.type === "list") base = `${b.title}:\n${(b.rows || []).map((r, i) => `${i + 1}. ${r}`).join("\n")}`;
     else if (b.type === "table") base = `${b.title} (${(b.cols || []).join(" · ")}):\n${(b.rows || []).map((r) => "- " + r.filter(Boolean).join(" · ")).join("\n")}`;

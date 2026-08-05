@@ -112,7 +112,15 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
       }
       if (b.type === "consolidado") {
         const e = (k) => consolidadoEff(b, k);
-        if (e("reunioes") || e("leadsIn") || e("leadsRem") || e("aprovados") || e("ressalvados") || e("reprovados")) {
+        if (b.kind === "parcerias") {
+          if (e("aprovados") || e("ressalvados") || e("reprovados") || e("callsClientes") || e("novosParceiros")) {
+            decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M; ${e("callsClientes")} calls com clientes; ${e("novosParceiros")} novos parceiros`);
+          }
+        } else if (b.kind === "farming") {
+          if (e("visitas") || e("callsPipe") || e("aprovados") || e("ressalvados") || e("reprovados")) {
+            decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("visitas")} visitas realizadas, ${e("callsPipe")} calls de pipe realizadas; SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
+          }
+        } else if (e("reunioes") || e("leadsIn") || e("leadsRem") || e("aprovados") || e("ressalvados") || e("reprovados")) {
           decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("reunioes")} reuniões realizadas, ${e("leadsIn")} leads inbound, ${e("leadsRem")} leads remarketing; SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
         }
       }
