@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, Check, Copy, Loader2, Pencil, Repeat, Send, Star, Trash2 } from "lucide-react";
+import { ArrowUpRight, Check, ChevronRight, Copy, Loader2, Pencil, Repeat, Send, Star, Trash2 } from "lucide-react";
 import { C, dateKeyBR, todayBR } from "../lib/util.js";
 import Avatar from "./Avatar.jsx";
 
@@ -79,6 +79,7 @@ export default function TasksView({ meta, me, onToggle, onGo, scanning, onAddRec
   const [who, setWho] = useState("mine"); // mine | all | userId
   const [when, setWhen] = useState("all"); // all | past | today | future
   const [showRec, setShowRec] = useState(false);
+  const [showDone, setShowDone] = useState(false);
   const [rec, setRec] = useState({ text: "", userId: "", freq: "weekly", weekday: 1, day: 1, important: false });
 
   const dKey = dateKeyBR;
@@ -98,14 +99,17 @@ export default function TasksView({ meta, me, onToggle, onGo, scanning, onAddRec
     });
   }, [meta.tasks, who, when, me]); // eslint-disable-line
 
+  const pending = useMemo(() => tasks.filter((t) => !t.done), [tasks]);
+  const doneTasks = useMemo(() => tasks.filter((t) => t.done), [tasks]);
+
   const groups = useMemo(() => {
     const byUser = {};
-    tasks.forEach((t) => {
+    pending.forEach((t) => {
       const key = t.userName || "Sem responsável";
       (byUser[key] = byUser[key] || []).push(t);
     });
     return byUser;
-  }, [tasks]);
+  }, [pending]);
 
   const userOf = (t) => meta.users.find((u) => u.id === t.userId) || null;
   const isLate = (t) => !t.done && dKey(t.date) && dKey(t.date) < tKey;
@@ -239,7 +243,7 @@ export default function TasksView({ meta, me, onToggle, onGo, scanning, onAddRec
         {" "}· ⭐ importantes primeiro · tarefas sem prazo aparecem em "Todas"
       </p>
 
-      {tasks.length === 0 && (
+      {pending.length === 0 && doneTasks.length === 0 && (
         <p className="text-sm" style={{ color: "#6B7280" }}>Nenhuma tarefa neste filtro.</p>
       )}
 
@@ -249,13 +253,25 @@ export default function TasksView({ meta, me, onToggle, onGo, scanning, onAddRec
             <div className="flex items-center gap-2 mb-2">
               {groups[name][0] && userOf(groups[name][0]) ? <Avatar user={userOf(groups[name][0])} /> : null}
               <p className="text-sm font-semibold" style={{ color: "#1F2937" }}>{name}</p>
-              <span className="text-xs" style={{ color: "#9CA3AF" }}>{groups[name].filter((i) => !i.done).length} pendente(s)</span>
+              <span className="text-xs" style={{ color: "#9CA3AF" }}>{groups[name].length} pendente(s)</span>
             </div>
             <div className="flex flex-col gap-1.5">{groups[name].map(TaskRow)}</div>
           </div>
         ))
       ) : (
-        <div className="flex flex-col gap-1.5">{tasks.map(TaskRow)}</div>
+        <div className="flex flex-col gap-1.5">{pending.map(TaskRow)}</div>
+      )}
+
+      {doneTasks.length > 0 && (
+        <div className="mt-6 pt-3 border-t" style={{ borderColor: C.line }}>
+          <button onClick={() => setShowDone((v) => !v)}
+            className="flex items-center gap-1.5 text-sm font-medium w-full"
+            style={{ color: "#6B7280" }}>
+            <ChevronRight size={15} style={{ transform: showDone ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+            Concluídas ({doneTasks.length})
+          </button>
+          {showDone && <div className="flex flex-col gap-1.5 mt-2">{doneTasks.map(TaskRow)}</div>}
+        </div>
       )}
     </div>
   );
