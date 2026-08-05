@@ -432,12 +432,15 @@ function ConsolidadoBlock({ b, onChange }) {
   const manual = b.manual || {};
   const isMan = (k) => manual[k] !== undefined;
   const items = consolidadoItems(b);
+  const [editing, setEditing] = useState(null); // item com a caixinha de digitação aberta
   const toggle = (k) => {
     if (isMan(k)) {
       const { [k]: _drop, ...rest } = manual;
       onChange({ ...b, manual: rest });
+      if (editing === k) setEditing(null);
     } else {
       onChange({ ...b, manual: { ...manual, [k]: String((b.vals || {})[k] || 0).replace(".", ",") } });
+      setEditing(k);
     }
   };
   return (
@@ -455,14 +458,22 @@ function ConsolidadoBlock({ b, onChange }) {
                 {isMan(k) ? "✏️ manual" : "🔄 auto"}
               </button>
             </div>
-            {isMan(k) ? (
+            {isMan(k) && editing === k ? (
               <input
+                autoFocus
                 value={manual[k]}
                 onChange={(e) => onChange({ ...b, manual: { ...manual, [k]: e.target.value } })}
+                onBlur={() => setEditing(null)}
+                onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
                 inputMode="decimal" placeholder="0"
                 className="w-24 border rounded-lg px-2 py-1 text-xl font-semibold outline-none mt-0.5"
                 style={{ borderColor: C.date, background: "#fff", color: C.stamp }}
               />
+            ) : isMan(k) ? (
+              <p className="text-xl font-semibold cursor-pointer" title="Toque para editar o valor"
+                onClick={() => setEditing(k)} style={{ color: C.stamp }}>
+                {money ? `R$ ${fmtV(consolidadoEff(b, k))}M` : consolidadoEff(b, k)}
+              </p>
             ) : (
               <p className="text-xl font-semibold" style={{ color: C.stamp }}>
                 {money ? `R$ ${fmtV(consolidadoEff(b, k))}M` : consolidadoEff(b, k)}
