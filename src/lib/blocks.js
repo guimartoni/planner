@@ -124,10 +124,26 @@ export const OUTBOUND_BLOCKS = () => ([
   FUP_MURILO_BLOCK(),
 ]);
 
+export const LIVE_MES_BLOCK = () =>
+  ({ id: uid(), type: "table", title: "🎥 LIVE DO MÊS", cols: ["Parceiro", "Data"], rows: [] });
+
+/* Migração: acrescenta o bloco Live do Mês logo abaixo do Café da Manhã
+   nas páginas/modelo de Parcerias já existentes. */
+export function upgradeLive(blocks) {
+  const src = blocks || [];
+  if (src.some((b) => /LIVE DO M/i.test(b.title || ""))) return blocks;
+  const i = src.findIndex((b) => /CAFÉ DA MANHÃ/i.test(b.title || ""));
+  if (i < 0) return blocks;
+  const out = [...src];
+  out.splice(i + 1, 0, LIVE_MES_BLOCK());
+  return out;
+}
+
 export const PARCERIAS_BLOCKS = () => ([
   { id: uid(), type: "check", title: "🗓 FUP SEMANAL (SEGUNDAS) COM PARCEIROS", checked: false },
   { id: uid(), type: "check", title: "🤖 DISPAROS SEMANAIS PARCEIROS (AI)", checked: false },
   { id: uid(), type: "table", title: "☕ CAFÉ DA MANHÃ / TALK PARCEIROS DO MÊS", cols: ["Parceiro", "Data"], rows: [] },
+  LIVE_MES_BLOCK(),
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ ANTERIOR", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS REALIZADAS COM PARCEIROS NA SEMANA", cols: ["Parceiro", "Observação"], rows: [] },
