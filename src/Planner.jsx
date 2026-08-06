@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
-  FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Search as SearchIcon,
-  Send, Trash2, X,
+  FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Redo2, Search as SearchIcon,
+  Send, Trash2, Undo2, X,
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
@@ -176,7 +176,7 @@ export default function Planner() {
     idsRef.current = r.ids;
     return r;
   });
-  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey, anthropicKey, saveAnthropicKey, getSnapshot, importData } = store;
+  const { cloudPhase, cloudErr, meta, setMeta, metaRef, loadBody, saveBody, deleteBodyKey, saveState, syncing, syncNow, tmbKey, saveTmbKey, anthropicKey, saveAnthropicKey, getSnapshot, importData, undo, redo, restoreTick, canUndo, canRedo } = store;
 
   /* chave da IA sincronizada: espelha no módulo de IA e migra a legada do navegador */
   useEffect(() => {
@@ -294,7 +294,7 @@ export default function Planner() {
     }
     setBody(b);
     setBodyFor(noteId);
-  }, [noteId, cloudPhase]); // eslint-disable-line
+  }, [noteId, cloudPhase, restoreTick]); // eslint-disable-line
 
   const patchBody = (patch) => {
     setBody((b) => {
@@ -1351,18 +1351,26 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
     }
   };
 
-  /* ---------- atalho Ctrl+K ---------- */
+  /* ---------- atalhos: Ctrl+K busca · Ctrl+Z desfaz · Ctrl+Y / Ctrl+Shift+Z refaz ---------- */
   useEffect(() => {
     const h = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "k") {
         e.preventDefault();
         setView("search");
         setShowSide(false);
+      } else if (k === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      } else if (k === "y" && !e.shiftKey) {
+        e.preventDefault();
+        redo();
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, []); // eslint-disable-line
+  }, [undo, redo]);
 
   /* ---------- tarefas recorrentes ---------- */
   const materializeRecurring = () => {
@@ -1485,6 +1493,14 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           setView("editor");
         }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} onReorder={reorderNotebooks} onOpenTab={openNbInTab} />
         <div className="flex-1" />
+        <button onClick={undo} disabled={!canUndo} className="p-2 rounded-lg text-white"
+          style={{ background: C.inkSoft, opacity: canUndo ? 1 : 0.35 }} title="Desfazer (Ctrl+Z)">
+          <Undo2 size={15} />
+        </button>
+        <button onClick={redo} disabled={!canRedo} className="p-2 rounded-lg text-white"
+          style={{ background: C.inkSoft, opacity: canRedo ? 1 : 0.35 }} title="Refazer (Ctrl+Y)">
+          <Redo2 size={15} />
+        </button>
         <button onClick={syncNow} className="p-2 rounded-lg text-white" style={{ background: C.inkSoft }} title="Sincronizar com o OneDrive">
           <RefreshCw size={15} className={syncing ? "animate-spin" : ""} />
         </button>

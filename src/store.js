@@ -24,6 +24,25 @@ export function usePlannerData(prepare) {
   const pendingRef = useRef(false);
   const dirtyRef = useRef(false);
 
+  /* ---------- desfazer / refazer (histórico local desta aba) ---------- */
+  const undoStack = useRef([]); // [{meta, bodies}] — estado ANTES de cada mudança
+  const redoStack = useRef([]);
+  const lastEditAt = useRef(0);
+  const [histVer, setHistVer] = useState(0); // força re-render dos botões
+  const [restoreTick, setRestoreTick] = useState(0); // avisa o app para recarregar a página aberta
+
+  /* Edições contínuas (digitação) num intervalo < 800ms viram um único passo. */
+  const recordHistory = () => {
+    if (!metaRef.current) return;
+    const now = Date.now();
+    if (now - lastEditAt.current > 800 || !undoStack.current.length) {
+      undoStack.current = [...undoStack.current.slice(-79), { meta: metaRef.current, bodies: bodiesRef.current }];
+    }
+    if (redoStack.current.length) redoStack.current = [];
+    lastEditAt.current = now;
+    setHistVer((v) => v + 1);
+  };
+
   const payload = () => ({
     app: "Planner - Gui - Finamob",
     atualizadoEm: new Date().toISOString(),
@@ -39,6 +58,11 @@ export function usePlannerData(prepare) {
     bodiesRef.current = { ...(remote.bodies || {}), ...bodiesRef.current };
     metaRef.current = merged;
     setMetaState(merged);
+    /* mudanças vindas de outro aparelho/aba não são desfazíveis: zera o
+       histórico para o Ctrl+Z nunca apagar o que chegou de fora */
+    undoStack.current = [];
+    redoStack.current = [];
+    setHistVer((v) => v + 1);
   };
 
   const doSaveRef = useRef(null);
@@ -73,24 +97,56 @@ export function usePlannerData(prepare) {
 
   /* ---------- API usada pelo app ---------- */
   const setMeta = useCallback((updater) => {
+    recordHistory();
     setMetaState((m) => {
       const next = typeof updater === "function" ? updater(m) : updater;
       metaRef.current = next;
       scheduleSave();
       return next;
     });
-  }, [scheduleSave]);
+  }, [scheduleSave]); // eslint-disable-line
 
   const loadBody = useCallback((id) => bodiesRef.current[id] || null, []);
   const saveBody = useCallback((id, body) => {
+    recordHistory();
     bodiesRef.current = { ...bodiesRef.current, [id]: body };
     scheduleSave();
-  }, [scheduleSave]);
+  }, [scheduleSave]); // eslint-disable-line
   const deleteBodyKey = useCallback((id) => {
+    recordHistory();
     const { [id]: _drop, ...rest } = bodiesRef.current;
     bodiesRef.current = rest;
     scheduleSave();
+  }, [scheduleSave]); // eslint-disable-line
+
+  /* Aplica uma foto do histórico e agenda a gravação normal (com merge). */
+  const applySnap = useCallback((snap) => {
+    metaRef.current = snap.meta;
+    bodiesRef.current = snap.bodies;
+    setMetaState(snap.meta);
+    lastEditAt.current = 0; // a próxima edição abre um novo passo de desfazer
+    setHistVer((v) => v + 1);
+    setRestoreTick((t) => t + 1);
+    scheduleSave();
   }, [scheduleSave]);
+
+  const undo = useCallback(() => {
+    const s = undoStack.current;
+    if (!s.length) return;
+    const snap = s[s.length - 1];
+    undoStack.current = s.slice(0, -1);
+    redoStack.current = [...redoStack.current, { meta: metaRef.current, bodies: bodiesRef.current }];
+    applySnap(snap);
+  }, [applySnap]);
+
+  const redo = useCallback(() => {
+    const s = redoStack.current;
+    if (!s.length) return;
+    const snap = s[s.length - 1];
+    redoStack.current = s.slice(0, -1);
+    undoStack.current = [...undoStack.current, { meta: metaRef.current, bodies: bodiesRef.current }];
+    applySnap(snap);
+  }, [applySnap]);
   const saveTmbKey = useCallback((k) => {
     tmbKeyRef.current = k;
     setTmbKeyState(k);
@@ -228,5 +284,8 @@ export function usePlannerData(prepare) {
     anthropicKey, saveAnthropicKey,
     saveState, syncing, syncNow,
     getSnapshot, importData,
+    undo, redo, restoreTick, histVer,
+    canUndo: undoStack.current.length > 0,
+    canRedo: redoStack.current.length > 0,
   };
 }
