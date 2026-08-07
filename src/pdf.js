@@ -25,6 +25,20 @@ export async function ataToPdf({ element, titulo, data }) {
     backgroundColor: "#EDEFF2",
     windowWidth: Math.max(element.scrollWidth, 900),
     onclone: (doc, el) => {
+      /* o clone interno recarrega o CSS pela rede; se o app está aberto
+         desde antes de um deploy, o arquivo antigo já sumiu do servidor
+         (404) e a captura sai sem estilo nenhum. Injetamos as regras da
+         página viva direto no clone — sem depender de rede. */
+      let css = "";
+      Array.from(document.styleSheets).forEach((sheet) => {
+        try { Array.from(sheet.cssRules).forEach((r) => { css += r.cssText + "\n"; }); } catch (e) {}
+      });
+      if (css) {
+        doc.querySelectorAll('link[rel="stylesheet"]').forEach((n) => n.remove());
+        const st = doc.createElement("style");
+        st.textContent = css;
+        doc.head.appendChild(st);
+      }
       // no papel: coluna única e sem textos cortados com "…"
       el.querySelectorAll('[class*="columns-2"]').forEach((n) => { n.style.columnCount = "1"; });
       el.querySelectorAll(".truncate").forEach((n) => {
