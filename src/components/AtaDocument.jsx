@@ -20,10 +20,10 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
   const [pdfBusy, setPdfBusy] = useState(false);
   const printRef = useRef(null);
 
-  const baixarPdf = async (titulo, data) => {
+  const baixarPdf = async (titulo, data, larguraPapel) => {
     if (pdfBusy) return;
     setPdfBusy(true);
-    try { await ataToPdf({ element: printRef.current, titulo, data }); } catch (e) {}
+    try { await ataToPdf({ element: printRef.current, titulo, data, larguraPapel }); } catch (e) {}
     setPdfBusy(false);
   };
 
@@ -119,7 +119,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
           <Pencil size={13} /> Reabrir e editar
         </button>
         <div className="flex-1" />
-        <button onClick={() => baixarPdf(s.titulo, s.data)} disabled={pdfBusy}
+        <button onClick={() => baixarPdf(s.titulo, s.data, 760)} disabled={pdfBusy}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white" style={{ background: C.ink, opacity: pdfBusy ? 0.7 : 1 }}>
           {pdfBusy ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} PDF
         </button>

@@ -10,7 +10,7 @@ const stripEmoji = (s) =>
     .replace(/\s{2,}/g, " ")
     .trim();
 
-export async function ataToPdf({ element, titulo, data }) {
+export async function ataToPdf({ element, titulo, data, larguraPapel = 1140 }) {
   if (!element) return;
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas-pro"),
@@ -23,7 +23,7 @@ export async function ataToPdf({ element, titulo, data }) {
     scale: SCALE,
     useCORS: true,
     backgroundColor: "#EDEFF2",
-    windowWidth: Math.max(element.scrollWidth, 900),
+    windowWidth: larguraPapel + 80,
     onclone: (doc, el) => {
       /* o clone interno recarrega o CSS pela rede; se o app está aberto
          desde antes de um deploy, o arquivo antigo já sumiu do servidor
@@ -39,6 +39,10 @@ export async function ataToPdf({ element, titulo, data }) {
         st.textContent = css;
         doc.head.appendChild(st);
       }
+      /* largura fixa no papel: a escala do PDF fica sempre igual,
+         não importa o tamanho da janela na hora de gerar */
+      el.style.width = larguraPapel + "px";
+      el.style.maxWidth = "none";
       // no papel: coluna única e sem textos cortados com "…"
       el.querySelectorAll('[class*="columns-2"]').forEach((n) => { n.style.columnCount = "1"; });
       el.querySelectorAll(".truncate").forEach((n) => {
