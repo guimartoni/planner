@@ -436,19 +436,6 @@ export default function Editor({
       <PageFiles files={body.files} busy={fileBusy}
         onOpen={onOpenFile} onRemove={(id) => onRemoveFile && onRemoveFile(id)} />
 
-      {!body.blocks && body.meetingSummary != null && (
-        <div className="mt-3 rounded-xl border shadow-sm" style={{ borderColor: C.line, background: C.paper }}>
-          <div className="px-4 pt-3 pb-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>
-            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: C.stamp }}>🎙️ Resumo da reunião</p>
-          </div>
-          <textarea
-            value={body.meetingSummary || ""}
-            onChange={(e) => onBody({ meetingSummary: e.target.value })}
-            className="w-full p-4 outline-none resize-none bg-transparent text-sm leading-6"
-            style={{ color: "#374151", minHeight: 100 }} />
-        </div>
-      )}
-
       {(body.routed || []).length > 0 && (
         <p className="mt-3 text-xs flex items-center gap-1" style={{ color: C.stamp }}>
           ↗ {(body.routed || []).length} linha(s) encaminhada(s) para outros subtemas

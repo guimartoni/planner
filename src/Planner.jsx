@@ -8,7 +8,7 @@ import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, u
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
-import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
+import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
 import { deleteFile, ensureFolder, getDownloadUrl, readJsonFile, uploadBinaryFile, uploadLargeFile } from "./onedrive.js";
 import { imgPath, prepareImage } from "./components/PageImages.jsx";
@@ -298,6 +298,9 @@ export default function Planner() {
         if (/outbound/i.test(tpl.name || "")) {
           if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_OUTBOUND_BLOCK(), ...blocks];
         }
+        // campo de resumo da reunião foi aposentado (07/08/2026) — some das páginas antigas
+        if (blocks.some((x) => /RESUMO DA REUNIÃO/i.test(x.title || "")))
+          blocks = blocks.filter((x) => !/RESUMO DA REUNIÃO/i.test(x.title || ""));
         const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
         if (missing.length || blocks !== b.blocks) {
           b = { ...b, blocks: [...blocks, ...missing.map((tb) => ({ ...JSON.parse(JSON.stringify(tb)), id: uid() }))] };
@@ -411,58 +414,12 @@ export default function Planner() {
         await uploadBinaryFile(filePath(tRef), tBlob, "text/plain");
         novos.push(tRef);
       }
-      // resumo: IA se houver chave (centavos), senão resumo local gratuito
-      let resumo = null;
-      if (transcript && transcript.length > 60) {
-        if (getAnthropicKey()) {
-          try {
-            const r = await callDirect(
-              `Você resume reuniões presenciais de uma empresa brasileira (Finamob). Resuma a transcrição abaixo em português claro, em até 10 frases curtas (uma por linha, começando com "• "), destacando decisões, números citados e próximos passos. Ignore conversa fiada.\n\nTRANSCRIÇÃO:\n${transcript.slice(0, 150000)}`,
-              TEXT_SCHEMA
-            );
-            resumo = r && r.texto;
-          } catch (e) { /* cai no resumo local */ }
-        }
-        if (!resumo) resumo = resumoTranscricaoLocal(transcript);
-        // sem chave: além do resumo local imediato, pede um resumo melhor à fila
-        // (o Claude Code do PC processa pela assinatura, sem custo de API)
-        if (!getAnthropicKey()) {
-          try {
-            const promptIA = `Você resume reuniões presenciais da Finamob (empresa brasileira). Resuma a transcrição abaixo em português claro e organizado nestas seções (pule as que ficarem vazias), cada item começando com "• ":
-🗣 ASSUNTOS TRATADOS
-✅ DECISÕES E ACORDOS
-💰 NÚMEROS E VALORES CITADOS
-📌 PRÓXIMOS PASSOS
-⚠️ PENDÊNCIAS
-
-Ignore conversa fiada. Seja fiel ao que foi dito — não invente.
-
-TRANSCRIÇÃO:
-${transcript.slice(0, 150000)}
-
-Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"o resumo aqui"}`;
-            const qid = await enqueueRequest({ tipo: "resumo-reuniao", noteId: nId, prompt: promptIA });
-            setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id: qid, noteId: nId, tipo: "resumo-reuniao", criadoEm: Date.now() }] }));
-          } catch (e) { /* fica com o resumo local */ }
-        }
-      }
-      const aplicar = (b) => {
-        const next = {
-          transcript: [b.transcript, transcript].filter(Boolean).join("\n\n"),
-          files: [...((b && b.files) || []), ...novos],
-        };
-        if (resumo) {
-          if (b.blocks) {
-            const i = b.blocks.findIndex((x) => /RESUMO DA REUNIÃO/i.test(x.title || ""));
-            next.blocks = i >= 0
-              ? b.blocks.map((x, j) => (j === i ? { ...x, text: [x.text, resumo].filter(Boolean).join("\n\n") } : x))
-              : [...b.blocks, { id: uid(), type: "text", title: "🎙️ RESUMO DA REUNIÃO", text: resumo }];
-          } else {
-            next.meetingSummary = [b.meetingSummary, resumo].filter(Boolean).join("\n\n");
-          }
-        }
-        return next;
-      };
+      // sem resumo automático — a pedido do Gui (07/08/2026), a gravação
+      // guarda só o áudio e a transcrição como anexos da página
+      const aplicar = (b) => ({
+        transcript: [b.transcript, transcript].filter(Boolean).join("\n\n"),
+        files: [...((b && b.files) || []), ...novos],
+      });
       if (noteIdRef.current === nId) patchBody(aplicar);
       else {
         const b = loadBody(nId) || { content: "", transcript: "", structured: null };
@@ -1027,12 +984,10 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         (tpl.blocksDef || []).forEach((tb) => {
           if (!blocks.some((b) => b.title === tb.title)) blocks.push({ ...JSON.parse(JSON.stringify(tb)), id: uid() });
         });
-        // FUP Murilo e resumo de gravação são de cada semana — começam em branco
-        blocks = blocks.map((b) => {
-          if (b.type === "fup") return { ...b, date: "", text: "", comment: "" };
-          if (/RESUMO DA REUNIÃO/i.test(b.title || "")) return { ...b, text: "", comment: "" };
-          return b;
-        });
+        // FUP Murilo é de cada semana — começa em branco; resumo de gravação foi aposentado
+        blocks = blocks
+          .filter((b) => !/RESUMO DA REUNIÃO/i.test(b.title || ""))
+          .map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" } : b));
       }
       else if (pb && pb.content) content = pb.content;
       participants = prev.participants || "";
@@ -1138,22 +1093,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               acervoResposta: { pergunta: item.pergunta || "", texto: parsed.texto || "", em: Date.now() },
             }));
           } else if (item.tipo === "resumo-reuniao") {
-            // troca o resumo local pelo resumo feito pelo Claude do PC
-            const b = loadBody(item.noteId);
-            const texto = ((parsed.texto || "") + "").trim();
-            if (b && texto) {
-              const nb2 = { ...b };
-              if (b.blocks) {
-                const i = b.blocks.findIndex((x) => /RESUMO DA REUNIÃO/i.test(x.title || ""));
-                nb2.blocks = i >= 0
-                  ? b.blocks.map((x, j) => (j === i ? { ...x, text: texto } : x))
-                  : [...b.blocks, { id: uid(), type: "text", title: "🎙️ RESUMO DA REUNIÃO", text: texto }];
-              } else {
-                nb2.meetingSummary = texto;
-              }
-              saveBody(item.noteId, nb2);
-              if (noteIdRef.current === item.noteId) setBody(nb2);
-            }
+            // campo de resumo removido (07/08/2026) — só descarta pedidos antigos da fila
             setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
           } else {
             applyAta(item.noteId, parsed);
