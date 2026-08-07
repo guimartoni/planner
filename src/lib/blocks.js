@@ -40,6 +40,11 @@ export const CONSOLIDADO_FARMING_BLOCK = () => (
   { id: uid(), type: "consolidado", kind: "farming", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
 );
 
+/* Consolidado do mês (Outbound): calls (reuniões da semana) + SQL do comitê. */
+export const CONSOLIDADO_OUTBOUND_BLOCK = () => (
+  { id: uid(), type: "consolidado", kind: "outbound", title: "📊 CONSOLIDADO DO MÊS", mes: "", vals: null }
+);
+
 /* Itens exibidos num consolidado, conforme o modelo: [chave, rótulo, é dinheiro?] */
 export const consolidadoItems = (b) => {
   const kind = (b && b.kind) || "";
@@ -53,6 +58,12 @@ export const consolidadoItems = (b) => {
   if (kind === "farming") return [
     ["visitas", "📍 Visitas realizadas", false],
     ["callsPipe", "📞 Calls de pipe realizadas", false],
+    ["aprovados", "✅ SQL aprovados", true],
+    ["ressalvados", "⚠️ SQL ressalvados", true],
+    ["reprovados", "❌ SQL reprovados", true],
+  ];
+  if (kind === "outbound") return [
+    ["reunioes", "📞 Calls realizadas", false],
     ["aprovados", "✅ SQL aprovados", true],
     ["ressalvados", "⚠️ SQL ressalvados", true],
     ["reprovados", "❌ SQL reprovados", true],
@@ -78,10 +89,18 @@ export const consolidadoEff = (b, k) => {
   return ((b && b.vals) || {})[k] || 0;
 };
 
-/* Bloco duplo de reuniões: agendadas e realizadas lado a lado */
+/* Bloco duplo de reuniões: agendadas, realizadas e de cards existentes.
+   No show (agendadas − realizadas) e % no show são calculados na hora. */
 export const REUNIOES_BLOCK = () => (
-  { id: uid(), type: "reunioes", title: "🤝 REUNIÕES DA SEMANA", agendadas: "", realizadas: "" }
+  { id: uid(), type: "reunioes", title: "🤝 REUNIÕES DA SEMANA", agendadas: "", realizadas: "", cards: "" }
 );
+
+export const noShowDe = (b) => {
+  const num = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
+  const a = num(b.agendadas), r = num(b.realizadas);
+  const qtd = Math.max(0, a - r);
+  return { qtd, pct: a > 0 ? (qtd / a) * 100 : 0 };
+};
 
 /* Migração: funde as métricas antigas (REUNIÕES DA SEMANA / AGENDADAS /
    REALIZADAS) num único bloco duplo, preservando os valores digitados. */
@@ -155,6 +174,7 @@ export const INBOUND_BLOCKS = () => ([
 ]);
 
 export const OUTBOUND_BLOCKS = () => ([
+  CONSOLIDADO_OUTBOUND_BLOCK(),
   { id: uid(), type: "metric", title: "🤝 REUNIÕES DA SEMANA", value: "" },
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
@@ -247,10 +267,13 @@ export function compareBlocks(prev, cur) {
       if (c || p) facts.push(`${cb.title}: ${fmtN(c)} (antes ${fmtN(p)}, Δ ${c - p >= 0 ? "+" : ""}${fmtN(c - p)})`);
     }
     if (cb.type === "reunioes") {
-      [["agendadas", "Reuniões agendadas"], ["realizadas", "Reuniões realizadas"]].forEach(([k, label]) => {
+      [["agendadas", "Reuniões agendadas"], ["realizadas", "Reuniões realizadas"], ["cards", "Reuniões de cards existentes"]].forEach(([k, label]) => {
         const c = num(cb[k]), p = num(pb[k]);
         if (c || p) facts.push(`${label}: ${fmtN(c)} (antes ${fmtN(p)}, Δ ${c - p >= 0 ? "+" : ""}${fmtN(c - p)})`);
       });
+      const nsC = noShowDe(cb), nsP = noShowDe(pb);
+      if (num(cb.agendadas) || num(pb.agendadas))
+        facts.push(`No show: ${fmtN(nsC.qtd)} (${fmtN(nsC.pct)}%) vs ${fmtN(nsP.qtd)} (${fmtN(nsP.pct)}%) na semana anterior`);
     }
     if (cb.type === "leads") {
       [["inbound", "Leads inbound"], ["remarketing", "Leads remarketing"]].forEach(([k, label]) => {

@@ -68,10 +68,15 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
         }
       }
       if (b.type === "reunioes") {
-        const a = String(b.agendadas || "").trim(), r = String(b.realizadas || "").trim();
-        if (a || r) {
-          decisoes.push(`${t}: ${a || 0} agendada(s), ${r || 0} realizada(s)${obs}`);
-          stats.push(`${a || 0} reuniões agendadas e ${r || 0} realizadas`);
+        const a = String(b.agendadas || "").trim(), r = String(b.realizadas || "").trim(), cx = String(b.cards || "").trim();
+        if (a || r || cx) {
+          const nA = num(a), nR = num(r);
+          const ns = Math.max(0, nA - nR);
+          const nsPct = nA > 0 ? fmtN((ns / nA) * 100) : "0";
+          const nsTxt = a ? `, no show ${fmtN(ns)} (${nsPct}%)` : "";
+          const cxTxt = cx ? `, ${cx} de card(s) existente(s)` : "";
+          decisoes.push(`${t}: ${a || 0} agendada(s), ${r || 0} realizada(s)${cxTxt}${nsTxt}${obs}`);
+          stats.push(`${a || 0} reuniões agendadas e ${r || 0} realizadas${cxTxt}${nsTxt}`);
         } else {
           decisoes.push(`${t}: sem informações${obs}`);
         }

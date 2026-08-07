@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { C } from "../lib/util.js";
-import { consolidadoEff, consolidadoItems } from "../lib/blocks.js";
+import { consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
 import Avatar from "./Avatar.jsx";
 
 /* Textarea com os comandos @responsável / # prazo / !subtema — usada nos
@@ -192,7 +192,7 @@ function CheckBlock({ b, onChange, users, sections }) {
 
 /* Blocos duplos (dois números lado a lado): reuniões e leads */
 const DUAL_FIELDS = {
-  reunioes: [["agendadas", "Agendadas", "📅"], ["realizadas", "Realizadas", "🤝"]],
+  reunioes: [["agendadas", "Agendadas", "📅"], ["realizadas", "Realizadas", "🤝"], ["cards", "De cards existentes", "🗂️"]],
   leads: [["inbound", "Inbound", "📥"], ["remarketing", "Remarketing", "🔁"]],
 };
 
@@ -210,10 +210,20 @@ function ReunioesBlock({ b, onChange, users, sections }) {
     </label>
   );
   const fields = DUAL_FIELDS[b.type] || DUAL_FIELDS.reunioes;
+  const ns = b.type === "reunioes" && String(b.agendadas || "").trim() ? noShowDe(b) : null;
   return (
     <BlockCard title={b.title}>
       <div className="flex items-end gap-6 flex-wrap">
         {fields.map(([key, label, emoji]) => campo(key, label, emoji))}
+        {ns && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold" style={{ color: "#6B7280" }}>🚫 No show</span>
+            <span className="px-3 py-2 rounded-lg text-2xl font-semibold"
+              style={{ background: ns.qtd ? "#FCEBEB" : "#E4F1EB", color: ns.qtd ? "#A32D2D" : C.stamp }}>
+              {ns.qtd} <span className="text-sm font-medium">({String(Math.round(ns.pct * 10) / 10).replace(".", ",")}%)</span>
+            </span>
+          </div>
+        )}
       </div>
       <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal, resumoTranscricaoLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -119,6 +119,16 @@ function prepareData(data) {
     if (!def.some((b) => b.type === "consolidado")) { def = [CONSOLIDADO_PARCERIAS_BLOCK(), ...def]; mudou = true; }
     if (mudou) {
       m = { ...m, templates: m.templates.map((t, i) => (i === pIdx2 ? { ...t, blocksDef: def } : t)) };
+      changed = true;
+    }
+  }
+
+  // Outbound: consolidado do mês no topo (calls + SQLs)
+  const oIdx2 = m.templates.findIndex((t) => t.v === 2 && /outbound/i.test(t.name));
+  if (oIdx2 >= 0) {
+    const def = m.templates[oIdx2].blocksDef || [];
+    if (!def.some((b) => b.type === "consolidado")) {
+      m = { ...m, templates: m.templates.map((t, i) => (i === oIdx2 ? { ...t, blocksDef: [CONSOLIDADO_OUTBOUND_BLOCK(), ...def] } : t)) };
       changed = true;
     }
   }
@@ -284,6 +294,9 @@ export default function Planner() {
         if (/parceria/i.test(tpl.name || "")) {
           blocks = upgradeLive(blocks);
           if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_PARCERIAS_BLOCK(), ...blocks];
+        }
+        if (/outbound/i.test(tpl.name || "")) {
+          if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_OUTBOUND_BLOCK(), ...blocks];
         }
         const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
         if (missing.length || blocks !== b.blocks) {
@@ -1006,6 +1019,9 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         if (/parceria/i.test(tpl.name || "")) {
           blocks = upgradeLive(blocks);
           if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_PARCERIAS_BLOCK(), ...blocks];
+        }
+        if (/outbound/i.test(tpl.name || "")) {
+          if (!blocks.some((b) => b.type === "consolidado")) blocks = [CONSOLIDADO_OUTBOUND_BLOCK(), ...blocks];
         }
         // blocos que entraram no modelo depois também aparecem na página clonada
         (tpl.blocksDef || []).forEach((tb) => {

@@ -1,4 +1,4 @@
-import { consolidadoEff, consolidadoItems } from "../lib/blocks.js";
+import { consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
 
 /* Painel visual do FUP — renderiza TODOS os blocos preenchidos, na ordem
    do template, com deltas vs semana anterior. Funciona para Farming,
@@ -45,13 +45,14 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     return k(a).localeCompare(k(b));
   });
 
-  const Delta = ({ cur, prev, money }) => {
+  const Delta = ({ cur, prev, money, pct, bad }) => {
     if (prev === null || prev === undefined) return null;
     const d = cur - prev;
     if (!d) return <span className="text-xs ml-1.5" style={{ color: D.mut }}>=</span>;
+    const bom = bad ? d < 0 : d > 0; // no show: cair é bom
     return (
-      <span className="text-xs ml-1.5 font-semibold" style={{ color: d > 0 ? D.green : D.red }}>
-        {d > 0 ? "▲" : "▼"} {money ? fmtN(Math.abs(d)) + "M" : Math.abs(d)}
+      <span className="text-xs ml-1.5 font-semibold" style={{ color: bom ? D.green : D.red }}>
+        {d > 0 ? "▲" : "▼"} {money ? fmtN(Math.abs(d)) + "M" : pct ? fmtN(Math.abs(d)) + "%" : fmtN(Math.abs(d))}
       </span>
     );
   };
@@ -68,6 +69,10 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     const p = findPrev(rb);
     kpis.push({ label: "Reuniões agendadas", cur: num(rb.agendadas), prev: p ? num(p.agendadas) : null });
     kpis.push({ label: "Reuniões realizadas", cur: num(rb.realizadas), prev: p ? num(p.realizadas) : null });
+    kpis.push({ label: "Reuniões de cards existentes", cur: num(rb.cards), prev: p ? num(p.cards) : null });
+    const ns = noShowDe(rb), nsP = p ? noShowDe(p) : null;
+    kpis.push({ label: "No show", cur: ns.qtd, prev: nsP ? nsP.qtd : null, bad: true });
+    kpis.push({ label: "% No show", cur: ns.pct, prev: nsP ? nsP.pct : null, bad: true, pct: true });
   });
   B.filter((b) => b.type === "leads").forEach((lb) => {
     const p = findPrev(lb);
@@ -199,9 +204,10 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   const renderReunioes = (b) => {
     // os números já estão nos KPIs do topo; o card aparece se houver comentário
     if (!(b.comment || "").trim() && !showEmpty) return null;
+    const ns = b.type === "reunioes" ? noShowDe(b) : null;
     const sub = b.type === "leads"
       ? `${b.inbound || 0} inbound · ${b.remarketing || 0} remarketing`
-      : `${b.agendadas || 0} agendadas · ${b.realizadas || 0} realizadas`;
+      : `${b.agendadas || 0} agendadas · ${b.realizadas || 0} realizadas · ${b.cards || 0} de cards existentes · no show ${ns.qtd} (${fmtN(ns.pct)}%)`;
     return (
       <Card key={b.id} title={b.title} sub={sub}>
         <Comment b={b} />
@@ -257,8 +263,8 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
             <div key={k.label} className="rounded-xl border px-3.5 py-3" style={{ borderColor: D.line, background: D.card }}>
               <p className="text-xs" style={{ color: D.mut }}>{k.label}</p>
               <p className="text-2xl font-semibold" style={{ color: D.text }}>
-                {k.money ? `R$ ${fmtN(k.cur)}M` : k.cur}
-                <Delta cur={k.cur} prev={k.prev} money={k.money} />
+                {k.money ? `R$ ${fmtN(k.cur)}M` : k.pct ? `${fmtN(k.cur)}%` : k.cur}
+                <Delta cur={k.cur} prev={k.prev} money={k.money} pct={k.pct} bad={k.bad} />
               </p>
             </div>
           ))}

@@ -56,7 +56,7 @@ export function blocksToText(blocks) {
   return blocks.map((b) => {
     let base = "";
     if (b.type === "metric") base = `${b.title}: ${b.value || "?"}`;
-    else if (b.type === "reunioes") base = `${b.title}: agendadas ${b.agendadas || "?"} · realizadas ${b.realizadas || "?"}`;
+    else if (b.type === "reunioes") base = `${b.title}: agendadas ${b.agendadas || "?"} · realizadas ${b.realizadas || "?"} · de cards existentes ${b.cards || "?"}`;
     else if (b.type === "leads") base = `${b.title}: inbound ${b.inbound || "?"} · remarketing ${b.remarketing || "?"}`;
     else if (b.type === "check") base = `${b.title}: ${b.checked ? "Realizado ✔" : "Não realizado ✖"}`;
     else if (b.type === "text") base = `${b.title}:\n${b.text || ""}`;
@@ -67,6 +67,8 @@ export function blocksToText(blocks) {
         base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M; calls com clientes ${e("callsClientes")}; novos parceiros ${e("novosParceiros")}`;
       else if (b.kind === "farming")
         base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: visitas realizadas ${e("visitas")}; calls de pipe realizadas ${e("callsPipe")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
+      else if (b.kind === "outbound")
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: calls realizadas ${e("reunioes")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
       else
         base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
     }
