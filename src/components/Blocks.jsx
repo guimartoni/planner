@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { C } from "../lib/util.js";
 import { consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
@@ -74,6 +74,22 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
   const inkColor = small ? "#6B7280" : "#1F2937";
   const sizeCls = small ? "text-xs leading-5" : "text-sm leading-7";
 
+  /* A caixa cresce junto com o texto: nunca sobra rolagem interna nem texto escondido.
+     Recalcula ao digitar e quando a janela muda de largura (o texto reparte em outras linhas). */
+  const fit = () => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const antes = ta.style.height;
+    ta.style.height = "auto";
+    const alvo = ta.scrollHeight;
+    ta.style.height = alvo > 0 ? `${alvo}px` : antes; // caixa fora da tela mede 0 — mantém como estava
+  };
+  useLayoutEffect(fit, [value, small, minH]);
+  useEffect(() => {
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []); // eslint-disable-line
+
   return (
     <div className="relative">
       <div
@@ -95,7 +111,7 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
           }
         }}
         placeholder={placeholder}
-        className={`relative w-full outline-none resize-none bg-transparent ${sizeCls}`}
+        className={`relative w-full outline-none resize-none overflow-hidden bg-transparent ${sizeCls}`}
         style={{ color: "transparent", caretColor: inkColor, minHeight: minH || (small ? 24 : 120) }}
       />
       {mentionQ !== null && (
