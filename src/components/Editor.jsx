@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { FileText, Loader2, Sparkles, Star } from "lucide-react";
 import { C } from "../lib/util.js";
+import { useAutoGrow } from "../lib/autoGrow.js";
 import { bodyText, parseDraftTasks } from "../lib/data.js";
 import Avatar from "./Avatar.jsx";
 import { BlocksEditor } from "./Blocks.jsx";
@@ -27,6 +28,9 @@ export default function Editor({
   const [datePick, setDatePick] = useState(false);
   const [dateQ, setDateQ] = useState("");
   const [tokenLen, setTokenLen] = useState(0);
+
+  /* A folha da página livre cresce junto com o texto (sem rolagem dentro da caixa). */
+  useAutoGrow(taRef, body && body.content, { sempre: true });
 
   const fmtDate = (d) =>
     `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
@@ -362,7 +366,7 @@ export default function Editor({
                 }
               }}
               placeholder={"Anote livremente, como no OneNote…\n\nEx.: Ligar pro cliente @Ana #05/08 !Inbound"}
-              className="relative w-full min-h-96 p-5 outline-none resize-none bg-transparent text-sm leading-7 break-words"
+              className="relative w-full min-h-96 p-5 outline-none resize-none overflow-hidden bg-transparent text-sm leading-7 break-words"
               style={{ color: "transparent", caretColor: "#1F2937" }}
             />
 

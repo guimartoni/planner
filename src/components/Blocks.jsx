@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { C } from "../lib/util.js";
+import { useAutoGrow } from "../lib/autoGrow.js";
 import { consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
 import Avatar from "./Avatar.jsx";
 
@@ -74,21 +75,8 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
   const inkColor = small ? "#6B7280" : "#1F2937";
   const sizeCls = small ? "text-xs leading-5" : "text-sm leading-7";
 
-  /* A caixa cresce junto com o texto: nunca sobra rolagem interna nem texto escondido.
-     Recalcula ao digitar e quando a janela muda de largura (o texto reparte em outras linhas). */
-  const fit = () => {
-    const ta = taRef.current;
-    if (!ta) return;
-    const antes = ta.style.height;
-    ta.style.height = "auto";
-    const alvo = ta.scrollHeight;
-    ta.style.height = alvo > 0 ? `${alvo}px` : antes; // caixa fora da tela mede 0 — mantém como estava
-  };
-  useLayoutEffect(fit, [value, small, minH]);
-  useEffect(() => {
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, []); // eslint-disable-line
+  /* A caixa cresce junto com o texto: nunca sobra rolagem interna nem texto escondido. */
+  useAutoGrow(taRef, value);
 
   return (
     <div className="relative">
@@ -264,6 +252,27 @@ function MetricBlock({ b, onChange, users, sections }) {
 const cellCls = "border rounded-lg px-2 py-1.5 text-xs outline-none w-full";
 const cellStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151" };
 
+/* Célula de tabela que ganha altura quando o texto não cabe na largura da coluna.
+   Continua sendo um texto de uma linha só: Enter não quebra linha (confirma a
+   linha nova, como antes) e texto colado com quebras vira espaço. */
+function GrowCell({ value, onChange, placeholder, className, style, onKeyDown, onBlur }) {
+  const ref = useRef(null);
+  useAutoGrow(ref, value, { modo: "minimo" });
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value.replace(/\s*\n+\s*/g, " "))}
+      onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); onKeyDown && onKeyDown(e); }}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      className={`${className || cellCls} leading-5 resize-none overflow-hidden`}
+      style={style}
+    />
+  );
+}
+
 /* Campo de data com calendário nativo — grava sempre como DD/MM/AAAA */
 function DateBR({ value, onChange, className, style, ...rest }) {
   const iso = (() => { const m = (value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; })();
@@ -286,16 +295,16 @@ function ListBlock({ b, onChange, users, sections }) {
     <BlockCard title={`${b.title} (${rows.length})`} hint={b.hint}>
       <div className="flex flex-col gap-1">
         {rows.map((r, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <span className="text-xs w-5 text-right" style={{ color: "#9CA3AF" }}>{i + 1}.</span>
-            <input value={r} onChange={(e) => onChange({ ...b, rows: rows.map((x, j) => (j === i ? e.target.value : x)) })}
+          <div key={i} className="flex items-stretch gap-1.5">
+            <span className="text-xs w-5 text-right self-center" style={{ color: "#9CA3AF" }}>{i + 1}.</span>
+            <GrowCell value={r} onChange={(v) => onChange({ ...b, rows: rows.map((x, j) => (j === i ? v : x)) })}
               className={cellCls} style={cellStyle} />
-            <button onClick={() => onChange({ ...b, rows: rows.filter((_, j) => j !== i) })} style={{ color: C.danger }}><X size={13} /></button>
+            <button onClick={() => onChange({ ...b, rows: rows.filter((_, j) => j !== i) })} className="self-center" style={{ color: C.danger }}><X size={13} /></button>
           </div>
         ))}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs w-5 text-right" style={{ color: "#C3C8CF" }}>+</span>
-          <input value={draft} onChange={(e) => setDraft(e.target.value)}
+        <div className="flex items-stretch gap-1.5">
+          <span className="text-xs w-5 text-right self-center" style={{ color: "#C3C8CF" }}>+</span>
+          <GrowCell value={draft} onChange={setDraft}
             onKeyDown={(e) => { if (e.key === "Enter") commit(); }} onBlur={commit}
             placeholder="Adicionar…" className={cellCls} style={cellStyle} />
         </div>
@@ -340,24 +349,24 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
             ))}
           </div>
           {rows.map((r, ri) => (
-            <div key={ri} className="flex items-center gap-1.5">
-              <span className="text-xs w-4 text-right shrink-0" style={{ color: "#9CA3AF" }}>{ri + 1}</span>
+            <div key={ri} className="flex items-stretch gap-1.5">
+              <span className="text-xs w-4 text-right shrink-0 self-center" style={{ color: "#9CA3AF" }}>{ri + 1}</span>
               {b.cols.map((c, ci) => {
                 const setVal = (v) => onChange({ ...b, rows: rows.map((x, j) => (j === ri ? x.map((vv, k) => (k === ci ? v : vv)) : x)) });
                 return isDateCol(ci)
                   ? <DateBR key={ci} value={r[ci] || ""} onChange={setVal} className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />
-                  : <input key={ci} value={r[ci] || ""} onChange={(e) => setVal(e.target.value)}
+                  : <GrowCell key={ci} value={r[ci] || ""} onChange={setVal}
                       className={cellCls} style={{ ...cellStyle, ...colStyle(ci) }} />;
               })}
               {onPromote && (
-                <button onClick={() => onPromote(ri)} className="shrink-0 p-0.5 rounded" title={promoteLabel || "Marcar como realizada"}
+                <button onClick={() => onPromote(ri)} className="shrink-0 self-center p-0.5 rounded" title={promoteLabel || "Marcar como realizada"}
                   style={{ color: C.stamp, background: C.stampSoft }}><Check size={13} /></button>
               )}
-              <button onClick={() => onChange({ ...b, rows: rows.filter((_, j) => j !== ri) })} className="shrink-0" style={{ color: C.danger }}><X size={13} /></button>
+              <button onClick={() => onChange({ ...b, rows: rows.filter((_, j) => j !== ri) })} className="shrink-0 self-center" style={{ color: C.danger }}><X size={13} /></button>
             </div>
           ))}
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs w-4 text-right shrink-0" style={{ color: "#C3C8CF" }}>+</span>
+          <div className="flex items-stretch gap-1.5">
+            <span className="text-xs w-4 text-right shrink-0 self-center" style={{ color: "#C3C8CF" }}>+</span>
             {b.cols.map((c, ci) => {
               const setVal = (v) => setDraft(draft.map((vv, k) => (k === ci ? v : vv)));
               const shared = {
@@ -367,7 +376,7 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
               };
               return isDateCol(ci)
                 ? <DateBR key={ci} value={draft[ci] || ""} onChange={setVal} {...shared} />
-                : <input key={ci} value={draft[ci] || ""} onChange={(e) => setVal(e.target.value)} placeholder={c} {...shared} />;
+                : <GrowCell key={ci} value={draft[ci] || ""} onChange={setVal} placeholder={c} {...shared} />;
             })}
             <span className="w-4 shrink-0" />
           </div>
@@ -416,16 +425,16 @@ function SqlGroup({ label, color, sum, rows, onChange }) {
       <p className="text-xs font-semibold mb-1" style={{ color }}>{label} — {sum}M</p>
       <div className="flex flex-col gap-1">
         {rows.map((r, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <input value={r[0]} onChange={(e) => onChange(rows.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))}
+          <div key={i} className="flex items-stretch gap-1.5">
+            <GrowCell value={r[0]} onChange={(v) => onChange(rows.map((x, j) => (j === i ? [v, x[1]] : x)))}
               className={cellCls} style={{ ...cellStyle, flex: "1 1 200px", minWidth: 170 }} />
             <input value={r[1]} onChange={(e) => onChange(rows.map((x, j) => (j === i ? [x[0], e.target.value] : x)))}
               className={cellCls} style={{ ...cellStyle, width: 90, flexShrink: 0 }} placeholder="M" inputMode="decimal" />
-            <button onClick={() => onChange(rows.filter((_, j) => j !== i))} style={{ color: C.danger }}><X size={13} /></button>
+            <button onClick={() => onChange(rows.filter((_, j) => j !== i))} className="self-center" style={{ color: C.danger }}><X size={13} /></button>
           </div>
         ))}
-        <div className="flex items-center gap-1.5">
-          <input value={dn} onChange={(e) => setDn(e.target.value)} onKeyDown={(e) => e.key === "Enter" && commit()}
+        <div className="flex items-stretch gap-1.5">
+          <GrowCell value={dn} onChange={setDn} onKeyDown={(e) => e.key === "Enter" && commit()}
             placeholder="Incorporadora" className={cellCls} style={{ ...cellStyle, flex: "1 1 200px", minWidth: 170 }} />
           <input value={dv} onChange={(e) => setDv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && commit()} onBlur={commit}
             placeholder="M" className={cellCls} style={{ ...cellStyle, width: 90, flexShrink: 0 }} inputMode="decimal" />
