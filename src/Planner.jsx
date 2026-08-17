@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -137,6 +137,13 @@ function prepareData(data) {
   const semFup = (t) => t.v === 2 && /farming|inbound|outbound|parceria/i.test(t.name) && !(t.blocksDef || []).some((b) => b.type === "fup");
   if (m.templates.some(semFup)) {
     m = { ...m, templates: m.templates.map((t) => (semFup(t) ? { ...t, blocksDef: [...(t.blocksDef || []), FUP_MURILO_BLOCK()] } : t)) };
+    changed = true;
+  }
+
+  // Transcrição da reunião: garante o bloco no fim dos modelos de FUP já existentes
+  const semTranscricao = (t) => t.v === 2 && /farming|inbound|outbound|parceria/i.test(t.name) && !(t.blocksDef || []).some((b) => b.type === "transcricao");
+  if (m.templates.some(semTranscricao)) {
+    m = { ...m, templates: m.templates.map((t) => (semTranscricao(t) ? { ...t, blocksDef: [...(t.blocksDef || []), TRANSCRICAO_BLOCK()] } : t)) };
     changed = true;
   }
 
@@ -984,10 +991,12 @@ export default function Planner() {
         (tpl.blocksDef || []).forEach((tb) => {
           if (!blocks.some((b) => b.title === tb.title)) blocks.push({ ...JSON.parse(JSON.stringify(tb)), id: uid() });
         });
-        // FUP Murilo é de cada semana — começa em branco; resumo de gravação foi aposentado
+        // FUP Murilo e transcrição são de cada semana — começam em branco;
+        // resumo de gravação foi aposentado
         blocks = blocks
           .filter((b) => !/RESUMO DA REUNIÃO/i.test(b.title || ""))
-          .map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" } : b));
+          .map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" }
+            : b.type === "transcricao" ? { ...b, text: "" } : b));
       }
       else if (pb && pb.content) content = pb.content;
       participants = prev.participants || "";

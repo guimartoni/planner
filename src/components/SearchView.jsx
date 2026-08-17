@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Loader2, Search as SearchIcon, Sparkles } from "lucide-react";
 import { C } from "../lib/util.js";
-import { bodyText } from "../lib/data.js";
+import { bodyText, transcricoesToText } from "../lib/data.js";
 
 export default function SearchView({ meta, loadBody, onGo, acervo, onAsk }) {
   const [q, setQ] = useState("");
@@ -21,7 +21,7 @@ export default function SearchView({ meta, loadBody, onGo, acervo, onAsk }) {
       const inTitle = (item.n.title || "").toLowerCase().includes(query);
       let snippet = null;
       const b = loadBody(item.n.id);
-      const content = bodyText(b);
+      const content = [bodyText(b), transcricoesToText(b && b.blocks)].filter(Boolean).join("\n\n");
       const idx = content.toLowerCase().indexOf(query);
       if (idx >= 0) snippet = "…" + content.slice(Math.max(0, idx - 50), idx + 90).replace(/\n/g, " ") + "…";
       if (inTitle || snippet) found.push({ id: item.n.id, title: item.n.title || "Página sem nome", nb: item.nb, sec: item.sec, date: item.n.createdAt, snippet });

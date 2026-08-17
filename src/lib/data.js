@@ -80,8 +80,16 @@ export function blocksToText(blocks) {
     }
     if (b.comment && b.comment.trim()) base += `\nComentários: ${b.comment.trim()}`;
     return base;
-  }).join("\n\n");
+  }).filter((x) => x && x.trim()).join("\n\n");
 }
+
+/* Transcrições coladas na página. Ficam FORA do blocksToText de propósito: são
+   longas e não devem entrar na ata, no texto do WhatsApp nem nos prompts de IA.
+   Entram só na busca, para achar o que foi falado na reunião. */
+export const transcricoesToText = (blocks) => (blocks || [])
+  .filter((b) => b.type === "transcricao" && (b.text || "").trim())
+  .map((b) => `${b.title}:\n${b.text.trim()}`)
+  .join("\n\n");
 
 export const bodyText = (b) => (!b ? "" : [blocksToText(b.blocks), b.content].filter((x) => x && x.trim()).join("\n\n"));
 

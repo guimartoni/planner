@@ -5,6 +5,13 @@ export const FUP_MURILO_BLOCK = () => (
   { id: uid(), type: "fup", title: "🤝 FUP MURILO", date: "", text: "" }
 );
 
+/* Transcrição da reunião: espaço para colar o texto vindo do gravador do app,
+   do Fathom, do Teams… Fica só na página (não entra na ata nem no WhatsApp),
+   mas é encontrado pela busca. */
+export const TRANSCRICAO_BLOCK = () => (
+  { id: uid(), type: "transcricao", title: "🎧 TRANSCRIÇÃO DA REUNIÃO", text: "" }
+);
+
 export const FARMING_BLOCKS = () => ([
   { id: uid(), type: "list", title: "📍 VISITAS REALIZADAS NA SEMANA", rows: [] },
   { id: uid(), type: "table", title: "📅 VISITAS AGENDADAS", cols: ["Incorporadora", "Data", "Cidade/UF"], rows: [] },
@@ -15,6 +22,7 @@ export const FARMING_BLOCKS = () => ([
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
+  TRANSCRICAO_BLOCK(),
 ]);
 
 /* Blocos da MIA (assistente de IA do Inbound): ajustes da semana + próximos passos */
@@ -171,6 +179,7 @@ export const INBOUND_BLOCKS = () => ([
   ...MIA_BLOCKS(),
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
+  TRANSCRICAO_BLOCK(),
 ]);
 
 export const OUTBOUND_BLOCKS = () => ([
@@ -180,6 +189,7 @@ export const OUTBOUND_BLOCKS = () => ([
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
+  TRANSCRICAO_BLOCK(),
 ]);
 
 export const LIVE_MES_BLOCK = () =>
@@ -209,6 +219,7 @@ export const PARCERIAS_BLOCKS = () => ([
   { id: uid(), type: "list", title: "🤝 NOVOS PARCEIROS CONTRATADOS NA SEMANA", rows: [] },
   { id: uid(), type: "text", title: "📌 COMENTÁRIOS GERAIS", text: "" },
   FUP_MURILO_BLOCK(),
+  TRANSCRICAO_BLOCK(),
 ]);
 
 /* Migração: acrescenta a coluna Cidade/UF nas Visitas a Agendar do Farming,

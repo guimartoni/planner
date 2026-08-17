@@ -546,6 +546,46 @@ function FupBlock({ b, onChange, users, sections }) {
   );
 }
 
+/* Transcrição da reunião — espaço para colar o texto (gravador do app, Fathom,
+   Teams…). A caixa NÃO cresce sozinha: transcrição é longa demais, então rola
+   por dentro e tem o botão de aumentar/diminuir a janela de leitura. */
+function TranscricaoBlock({ b, onChange }) {
+  const [aberto, setAberto] = useState(false);
+  const texto = b.text || "";
+  const palavras = texto.trim() ? texto.trim().split(/\s+/).length : 0;
+  const fmt = (n) => n.toLocaleString("pt-BR");
+  return (
+    <BlockCard
+      title={b.title}
+      extra={
+        <div className="flex items-center gap-2">
+          {palavras > 0 && (
+            <span className="text-xs" style={{ color: "#6B7280" }}>{fmt(palavras)} palavras</span>
+          )}
+          {texto && (
+            <button onClick={() => setAberto(!aberto)}
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: C.stampSoft, color: C.stamp }}>
+              {aberto ? "▲ diminuir" : "▼ aumentar"}
+            </button>
+          )}
+        </div>
+      }
+      hint="Cole aqui a transcrição da reunião. Fica guardada só nesta página e aparece na busca — não entra na ata, no PDF nem no texto do WhatsApp.">
+      <textarea
+        value={texto}
+        onChange={(e) => onChange({ ...b, text: e.target.value })}
+        placeholder="Cole a transcrição aqui (Ctrl+V)…"
+        className="w-full border rounded-lg px-3 py-2 text-xs leading-5 outline-none resize-none"
+        style={{
+          borderColor: "#E3E5DE", background: "#fff", color: "#374151",
+          height: texto ? (aberto ? 520 : 200) : 110, overflowY: "auto",
+        }}
+      />
+    </BlockCard>
+  );
+}
+
 export function BlocksEditor({ blocks, onChange, users, sections }) {
   const patch = (i, nb) => onChange(blocks.map((b, j) => (j === i ? nb : b)));
 
@@ -588,6 +628,7 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
         if (b.type === "sql") return <SqlBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "fup") return <FupBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "consolidado") return <ConsolidadoBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
+        if (b.type === "transcricao") return <TranscricaoBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
         return <TextBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
       })}
     </div>
