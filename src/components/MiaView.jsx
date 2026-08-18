@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { History, Plus, X } from "lucide-react";
+import { Check, History, Plus, X } from "lucide-react";
 import { C, dateKeyBR, todayBR, uid } from "../lib/util.js";
 import { useAutoGrow } from "../lib/autoGrow.js";
 import { chaveSemana, ehSemanaAtual, faixaSemana, rotuloSemana, segundaDa, semanaAtual, statusDe } from "../lib/semana.js";
@@ -98,6 +98,45 @@ function SemanaCampo({ valor, onChange, placeholder = "definir semana" }) {
   );
 }
 
+/* Status: um toque abre o menu e você escolhe — nada muda sem escolher. */
+const OPCOES = [
+  { k: "a-executar", campos: { concluida: false, concluidaEm: null, atrasoManual: false } },
+  { k: "atraso", campos: { concluida: false, concluidaEm: null, atrasoManual: true } },
+  { k: "concluido", campos: (hoje) => ({ concluida: true, concluidaEm: hoje, atrasoManual: false }) },
+];
+
+function StatusCampo({ a, onEscolher }) {
+  const [aberto, setAberto] = useState(false);
+  const atual = statusDe(a);
+  const e = ESTILO[atual];
+  return (
+    <span className="relative shrink-0 self-center" style={{ width: L.status }}>
+      <button onClick={() => setAberto(!aberto)} title="Trocar o status"
+        className="w-full px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+        style={{ background: e.background, color: e.color }}>
+        {e.rotulo}
+      </button>
+      {aberto && (
+        <>
+          <span className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
+          <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border shadow-lg overflow-hidden"
+            style={{ background: "#fff", borderColor: C.line, width: 150 }}>
+            {OPCOES.map((o) => (
+              <button key={o.k}
+                onClick={() => { onEscolher(typeof o.campos === "function" ? o.campos(todayBR()) : o.campos); setAberto(false); }}
+                className="w-full flex items-center gap-1.5 px-2.5 py-2 text-xs text-left hover:bg-gray-50"
+                style={{ color: ESTILO[o.k].color, fontWeight: o.k === atual ? 700 : 500 }}>
+                <span className="flex-1">{ESTILO[o.k].rotulo}</span>
+                {o.k === atual && <Check size={12} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
 function Comentarios({ valor, onChange }) {
   const ref = useRef(null);
   useAutoGrow(ref, valor, { sempre: true });
@@ -160,7 +199,6 @@ export default function MiaView({ mia, onChange }) {
   });
 
   const linha = (sid) => (a) => {
-    const e = ESTILO[statusDe(a)];
     const reprog = (a.historico || []).length;
     return (
       <div key={a.id} className="flex items-stretch gap-1.5 py-1">
@@ -170,19 +208,14 @@ export default function MiaView({ mia, onChange }) {
         <SemanaCampo valor={a.semana} onChange={(v) => mudarSemana(sid, a, v)} />
         <span className="shrink-0 self-center flex justify-center" style={{ width: L.reprog }}>
           {reprog > 0 && (
-            <button onClick={() => setVerHistorico(a)} title="Ver as reprogramações"
+            <button onClick={() => setVerHistorico({ sid, id: a.id })} title="Ver as reprogramações"
               className="px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
               style={{ background: C.dateSoft, color: C.date }}>
               <History size={12} /> reprogramado {reprog > 1 ? `(${reprog})` : ""}
             </button>
           )}
         </span>
-        <button onClick={() => patchAtiv(sid, a.id, { concluida: !a.concluida, concluidaEm: a.concluida ? null : todayBR() })}
-          title={a.concluida ? "Reabrir a atividade" : "Marcar como concluída"}
-          className="shrink-0 self-center px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-          style={{ background: e.background, color: e.color, width: L.status }}>
-          {e.rotulo}
-        </button>
+        <StatusCampo a={a} onEscolher={(campos) => patchAtiv(sid, a.id, campos)} />
         <button onClick={() => patchSecao(sid, { atividades: dados.secoes.find((s) => s.id === sid).atividades.filter((x) => x.id !== a.id) })}
           className="shrink-0 self-center p-1" style={{ color: C.danger }} title="Excluir">
           <X size={14} />
@@ -328,35 +361,63 @@ export default function MiaView({ mia, onChange }) {
         })}
       </div>
 
-      {verHistorico && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,23,28,.45)" }}
-          onClick={() => setVerHistorico(null)}>
-          <div className="rounded-xl border shadow-lg w-full max-w-md p-4" style={{ background: "#fff", borderColor: C.line }}
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start gap-2 mb-3">
-              <p className="flex-1 text-sm font-semibold" style={{ color: "#1F2937" }}>Reprogramações</p>
-              <button onClick={() => setVerHistorico(null)} style={{ color: "#9CA3AF" }}><X size={16} /></button>
+      {(() => {
+        if (!verHistorico) return null;
+        const sec = dados.secoes.find((s) => s.id === verHistorico.sid);
+        const a = sec && sec.atividades.find((x) => x.id === verHistorico.id);
+        if (!a) return null;
+        const hist = a.historico || [];
+        /* Clicou sem querer e gravou uma semana errada? Some com a linha —
+           e, se quiser, a semana volta para a de antes daquela troca. */
+        const apagar = (i) => {
+          const resto = hist.filter((_, k) => k !== i);
+          patchAtiv(verHistorico.sid, a.id, { historico: resto });
+          if (!resto.length) setVerHistorico(null);
+        };
+        const voltarPara = (i) => {
+          patchAtiv(verHistorico.sid, a.id, { semana: hist[i].de, historico: hist.filter((_, k) => k !== i) });
+          setVerHistorico(null);
+        };
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(20,23,28,.45)" }}
+            onClick={() => setVerHistorico(null)}>
+            <div className="rounded-xl border shadow-lg w-full max-w-lg p-4" style={{ background: "#fff", borderColor: C.line }}
+              onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start gap-2 mb-3">
+                <p className="flex-1 text-sm font-semibold" style={{ color: "#1F2937" }}>Reprogramações</p>
+                <button onClick={() => setVerHistorico(null)} style={{ color: "#9CA3AF" }}><X size={16} /></button>
+              </div>
+              <p className="text-sm mb-3" style={{ color: "#374151" }}>{a.atividade}</p>
+              <div className="flex flex-col gap-1.5">
+                {hist.map((h, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs rounded-lg px-2.5 py-2" style={{ background: "#F5F6F7" }}>
+                    <span className="w-5 text-right" style={{ color: "#9CA3AF" }}>{i + 1}.</span>
+                    <span style={{ color: "#6B7280" }}>da</span>
+                    <span className="font-medium" style={{ color: "#374151" }}>{rotuloSemana(h.de)}</span>
+                    <span style={{ color: "#6B7280" }}>para a</span>
+                    <span className="font-semibold px-1.5 py-0.5 rounded" style={{ background: C.dateSoft, color: C.date }}>{rotuloSemana(h.para)}</span>
+                    <span className="flex-1 text-right" style={{ color: "#9CA3AF" }}>em {h.em}</span>
+                    <button onClick={() => voltarPara(i)} title={`Desfazer: voltar para a ${rotuloSemana(h.de)}`}
+                      className="px-1.5 py-0.5 rounded font-medium" style={{ background: "#E7EAEE", color: "#4B5563" }}>
+                      ↩︎ voltar
+                    </button>
+                    <button onClick={() => apagar(i)} title="Apagar só este registro (a semana atual não muda)"
+                      style={{ color: C.danger }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs mt-3" style={{ color: "#9CA3AF" }}>
+                Agora está na <b style={{ color: C.date }}>{rotuloSemana(a.semana)}</b>
+                {a.criadaEm ? ` · cadastrada em ${a.criadaEm}` : ""}
+                <br />
+                <b>↩︎ voltar</b> devolve a atividade para a semana anterior e apaga o registro; o <b>✕</b> apaga só o registro.
+              </p>
             </div>
-            <p className="text-sm mb-3" style={{ color: "#374151" }}>{verHistorico.atividade}</p>
-            <div className="flex flex-col gap-1.5">
-              {(verHistorico.historico || []).map((h, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs rounded-lg px-2.5 py-2" style={{ background: "#F5F6F7" }}>
-                  <span className="w-5 text-right" style={{ color: "#9CA3AF" }}>{i + 1}.</span>
-                  <span style={{ color: "#6B7280" }}>da</span>
-                  <span className="font-medium" style={{ color: "#374151" }}>{rotuloSemana(h.de)}</span>
-                  <span style={{ color: "#6B7280" }}>para a</span>
-                  <span className="font-semibold px-1.5 py-0.5 rounded" style={{ background: C.dateSoft, color: C.date }}>{rotuloSemana(h.para)}</span>
-                  <span className="flex-1 text-right" style={{ color: "#9CA3AF" }}>em {h.em}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs mt-3" style={{ color: "#9CA3AF" }}>
-              Agora está na <b style={{ color: C.date }}>{rotuloSemana(verHistorico.semana)}</b>
-              {verHistorico.criadaEm ? ` · cadastrada em ${verHistorico.criadaEm}` : ""}
-            </p>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

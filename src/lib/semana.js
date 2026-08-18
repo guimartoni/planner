@@ -29,9 +29,10 @@ export const rotuloSemana = (br) => (segundaDa(br) ? `semana ${segundaDa(br).sli
 export const faixaSemana = (br) => (segundaDa(br) ? `${segundaDa(br).slice(0, 5)} a ${domingoDa(br).slice(0, 5)}` : "");
 export const chaveSemana = (br) => dateKeyBR(segundaDa(br)) || "99999999";
 
-/* Concluída · Atraso (a semana já terminou) · A executar */
+/* Concluída · Atraso (a semana já terminou, ou marcado à mão) · A executar */
 export function statusDe(a) {
   if (a.concluida) return "concluido";
+  if (a.atrasoManual) return "atraso";
   if (a.semana && dateKeyBR(domingoDa(a.semana)) < dateKeyBR(todayBR())) return "atraso";
   return "a-executar";
 }
