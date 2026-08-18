@@ -1,12 +1,92 @@
 import { useRef, useState } from "react";
-import { Check, Copy, FileDown, Loader2, Pencil, Send } from "lucide-react";
+import { Check, Copy, FileDown, Loader2, Pencil, Send, Sparkles } from "lucide-react";
 import { C } from "../lib/util.js";
 import { blocksToText } from "../lib/data.js";
+import { agruparPorResponsavel, checklistWhats } from "../lib/checklist.js";
 import { ataToPdf } from "../pdf.js";
 import Avatar from "./Avatar.jsx";
 import FupPanel from "./FupPanel.jsx";
 import PageImages from "./PageImages.jsx";
 import PageFiles from "./PageFiles.jsx";
+
+/* Checklist do que precisa ser feito na semana — a IA lê a ata inteira e
+   monta; o texto do WhatsApp sai pronto para copiar. */
+function ChecklistSemana({ body, s0, checklist }) {
+  const [copiado, setCopiado] = useState(false);
+  const chk = body.checklist;
+  const itens = (chk && chk.itens) || [];
+  const { busy, fila, erro, onGerar } = checklist || {};
+  const texto = checklistWhats(chk, { titulo: s0.titulo, data: s0.data });
+
+  const copiar = () => {
+    const ta = document.createElement("textarea");
+    ta.value = texto;
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 1500); } catch (e) {}
+    document.body.removeChild(ta);
+  };
+
+  if (!onGerar) return null;
+  return (
+    <div className="rounded-xl border shadow-sm p-4 mt-3" style={{ borderColor: C.line, background: C.paper }}>
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <p className="text-xs font-bold uppercase tracking-widest flex-1" style={{ color: C.stamp }}>
+          ✅ Checklist da semana
+        </p>
+        {itens.length > 0 && (
+          <>
+            <button onClick={copiar} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "#E2E5E9", color: "#374151" }}>
+              {copiado ? <Check size={13} /> : <Copy size={13} />} {copiado ? "Copiado!" : "Copiar p/ WhatsApp"}
+            </button>
+            <a href={"https://wa.me/?text=" + encodeURIComponent(texto)} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white no-underline"
+              style={{ background: "#1FAF57" }}>
+              <Send size={13} /> WhatsApp
+            </a>
+          </>
+        )}
+        <button onClick={onGerar} disabled={busy || fila}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
+          style={{ background: C.ink, opacity: busy || fila ? 0.6 : 1 }}>
+          {busy || fila ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {busy ? "Gerando…" : fila ? "Na fila da IA…" : itens.length ? "Gerar de novo" : "Gerar com IA"}
+        </button>
+      </div>
+
+      {fila && (
+        <p className="text-xs mb-2" style={{ color: C.date }}>
+          O pedido foi para a fila da IA — o computador com o Planner Fila IA responde em cerca de um minuto.
+        </p>
+      )}
+      {erro && <p className="text-xs mb-2" style={{ color: C.danger }}>{erro}</p>}
+
+      {itens.length === 0 ? (
+        <p className="text-xs" style={{ color: "#9CA3AF", fontFamily: "system-ui, sans-serif" }}>
+          A IA lê esta ata inteira (incluindo a transcrição, se houver) e monta a lista do que precisa ser feito na semana, já separada por responsável e pronta para mandar no WhatsApp.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+          {agruparPorResponsavel(itens).map((g) => (
+            <div key={g.nome}>
+              <p className="text-xs font-semibold mb-1" style={{ color: C.mention }}>{g.nome}</p>
+              {g.itens.map((i, k) => (
+                <div key={k} className="flex items-start gap-2 py-1 text-sm" style={{ color: "#374151" }}>
+                  <span className="mt-0.5">{i.prioridade === "alta" ? "🔴" : "▫️"}</span>
+                  <span className="flex-1">{i.tarefa}</span>
+                  {i.prazo && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                      style={{ background: C.dateSoft, color: C.date }}>{i.prazo}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Sec = ({ label, children }) => (
   <div className="mb-4">
@@ -15,7 +95,7 @@ const Sec = ({ label, children }) => (
   </div>
 );
 
-export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, onOpenFile }) {
+export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, onOpenFile, checklist }) {
   const [copied, setCopied] = useState(null); // 'plain' | 'whats'
   const [pdfBusy, setPdfBusy] = useState(false);
   const printRef = useRef(null);
@@ -80,6 +160,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
           </div>
         )}
         </div>
+        <ChecklistSemana body={body} s0={s0} checklist={checklist} />
       </div>
     );
   }
@@ -185,6 +266,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
           </Sec>
         )}
       </div>
+      <ChecklistSemana body={body} s0={s} checklist={checklist} />
     </div>
   );
 }

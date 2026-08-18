@@ -51,6 +51,60 @@ Gere a ata padrão. Responda SOMENTE com JSON válido, sem markdown, sem texto a
 Regras: preserve as tarefas marcadas com @ e as datas marcadas com 📅; linhas com asterisco (*) são tarefas importantes (importante:true, e remova o asterisco do texto); demais ações têm importante:false; atribua responsavel apenas se corresponder exatamente a um usuário cadastrado; se não houver comparativo, use lista vazia.`;
 }
 
+/* ---------- checklist de ações da semana (fim da ata) ---------- */
+export const CHECKLIST_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["itens"],
+  properties: {
+    itens: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["tarefa", "responsavel", "prazo", "prioridade"],
+        properties: {
+          tarefa: { type: "string" },
+          responsavel: { type: ["string", "null"] },
+          prazo: { type: ["string", "null"] },
+          prioridade: { type: "string", enum: ["alta", "normal"] },
+        },
+      },
+    },
+  },
+};
+
+/* Lê a ata inteira (blocos, decisões, ações já delegadas e a transcrição, se
+   houver) e devolve o que precisa ser feito na semana. */
+export function buildChecklistPrompt({ noteMeta, body, users, tasks, tplName }) {
+  const userList = (users || []).map((u) => `${u.name} (${u.area})`).join(", ") || "(nenhum)";
+  const s = body.structured || {};
+  const pendentes = (tasks || []).filter((t) => !t.done);
+  const transcricao = (body.blocks || [])
+    .filter((b) => b.type === "transcricao" && (b.text || "").trim())
+    .map((b) => b.text.trim())
+    .join("\n\n")
+    .slice(0, 20000);
+  return `Você organiza o trabalho da semana de uma equipe comercial brasileira (Finamob). Data de hoje: ${todayBR()}.
+Equipe cadastrada: ${userList}.
+Reunião: ${tplName || noteMeta.title || "FUP semanal"}${noteMeta.createdAt ? ` — ${noteMeta.createdAt}` : ""}.
+
+CONTEÚDO DA ATA:
+${bodyText(body) || "(vazio)"}
+${s.decisoes && s.decisoes.length ? `\nDECISÕES REGISTRADAS:\n${s.decisoes.map((d) => "- " + d).join("\n")}\n` : ""}${pendentes.length ? `\nAÇÕES JÁ DELEGADAS (inclua-as no checklist, sem duplicar):\n${pendentes.map((t) => `- ${t.text}${t.userName ? ` — ${t.userName}` : ""}${t.date ? ` — prazo ${t.date}` : ""}`).join("\n")}\n` : ""}${transcricao ? `\nTRANSCRIÇÃO DA REUNIÃO (use para achar combinados que não foram anotados):\n${transcricao}\n` : ""}
+Monte o checklist do que a equipe precisa REALIZAR nesta semana, a partir de tudo acima.
+Regras:
+- Cada item é uma ação concreta e verificável, começando com um verbo no infinitivo (ex.: "Retomar contato com a Alfa Incorporadora sobre a proposta revisada").
+- Inclua o que ficou pendente, o que foi combinado e o que a reunião deixou claro que precisa acontecer; não invente nada que não esteja no material.
+- Não repita a mesma ação em itens diferentes; junte o que for a mesma coisa.
+- No máximo 15 itens, do mais urgente para o menos urgente.
+- "responsavel": use o nome EXATO de alguém da equipe cadastrada quando estiver claro de quem é a tarefa; caso contrário, null.
+- "prazo": DD/MM/AAAA quando houver data combinada ou dedutível ("até quinta"); caso contrário, null.
+- "prioridade": "alta" quando houver risco, cobrança, prazo estourando ou dinheiro na mesa; senão "normal".
+Responda SOMENTE com JSON válido, sem markdown e sem texto antes ou depois, neste formato:
+{"itens":[{"tarefa":"...","responsavel":"nome exato ou null","prazo":"DD/MM/AAAA ou null","prioridade":"alta"}]}`;
+}
+
 /* Respostas de texto livre (resumo semanal, pergunte ao acervo) também
    viajam como JSON estrito para a fila funcionar de forma uniforme. */
 export const TEXT_SCHEMA = {

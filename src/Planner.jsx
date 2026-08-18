@@ -7,7 +7,7 @@ import {
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
-import { TEXT_SCHEMA, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
+import { CHECKLIST_SCHEMA, TEXT_SCHEMA, buildChecklistPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
 import { deleteFile, ensureFolder, getDownloadUrl, readJsonFile, uploadBinaryFile, uploadLargeFile } from "./onedrive.js";
@@ -236,6 +236,8 @@ export default function Planner() {
   const [weeklyOpen, setWeeklyOpen] = useState(false);
   const [weeklyBusy, setWeeklyBusy] = useState(false);
   const [acervoBusy, setAcervoBusy] = useState(false);
+  const [checklistBusy, setChecklistBusy] = useState(false);
+  const [checklistErr, setChecklistErr] = useState(null);
   const [backup, setBackup] = useState(null); // backup do OneDrive detectado
   const [importing, setImporting] = useState(false);
   const [importErr, setImportErr] = useState(null);
@@ -1056,6 +1058,49 @@ export default function Planner() {
     }));
   };
 
+  /* ---------- checklist da semana (fim da ata) ----------
+     Aqui a IA vale a pena: ela lê a ata inteira e diz o que precisa ser feito.
+     Sem chave da API, o pedido vai para a fila local — o Claude do próprio PC
+     responde (assinatura Max, sem custo). Com chave, responde na hora. */
+  const aplicarChecklist = (nId, parsed) => {
+    const itens = (parsed && parsed.itens) || [];
+    const b = loadBody(nId);
+    if (!b) return;
+    const next = { ...b, checklist: { itens, em: Date.now() } };
+    saveBody(nId, next);
+    if (noteIdRef.current === nId) setBody(next);
+    setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.noteId !== nId || x.tipo !== "checklist") }));
+  };
+
+  const gerarChecklist = async () => {
+    if (!noteMeta || !body || checklistBusy) return;
+    if ((metaRef.current?.iaQueue || []).some((q) => q.noteId === noteId && q.tipo === "checklist")) return;
+    const tplName = noteMeta.templateId
+      ? (((meta.templates || []).find((t) => t.id === noteMeta.templateId) || {}).name || null)
+      : null;
+    const prompt = buildChecklistPrompt({
+      noteMeta, body, users: meta.users, tplName,
+      tasks: (meta.tasks || []).filter((t) => t.noteId === noteId),
+    });
+    setChecklistErr(null);
+    if (getAnthropicKey()) {
+      setChecklistBusy(true);
+      try {
+        aplicarChecklist(noteId, await callDirect(prompt, CHECKLIST_SCHEMA));
+      } catch (e) {
+        setChecklistErr("Não consegui gerar o checklist agora — tente de novo.");
+      }
+      setChecklistBusy(false);
+      return;
+    }
+    try {
+      const id = await enqueueRequest({ tipo: "checklist", noteId, prompt });
+      setMeta((m) => ({ ...m, iaQueue: [...(m.iaQueue || []), { id, noteId, tipo: "checklist", criadoEm: Date.now() }] }));
+    } catch (e) {
+      setChecklistErr("Não consegui enviar o pedido para a fila — verifique a internet.");
+    }
+  };
+
   /* Ata gerada LOCALMENTE — as atas seguem sempre o mesmo padrão, então o
      próprio app monta tudo dos blocos: instantâneo, custo zero, sem IA. */
   const concludeAta = () => {
@@ -1083,6 +1128,7 @@ export default function Planner() {
           if (item.tipo === "resumo") setMeta((m) => ({ ...m, weeklyResumo: { text: aviso, em: Date.now() } }));
           else if (item.tipo === "acervo") setMeta((m) => ({ ...m, acervoResposta: { pergunta: item.pergunta || "", texto: aviso, em: Date.now() } }));
           else if (item.tipo === "resumo-reuniao") { /* o resumo local já está na ata — segue sem alarde */ }
+          else if (item.tipo === "checklist") setChecklistErr(aviso);
           else setIaErr((e) => ({ ...e, [item.noteId]: aviso }));
           continue;
         }
@@ -1104,6 +1150,8 @@ export default function Planner() {
           } else if (item.tipo === "resumo-reuniao") {
             // campo de resumo removido (07/08/2026) — só descarta pedidos antigos da fila
             setMeta((m) => ({ ...m, iaQueue: (m.iaQueue || []).filter((x) => x.id !== item.id) }));
+          } else if (item.tipo === "checklist") {
+            aplicarChecklist(item.noteId, parsed);
           } else {
             applyAta(item.noteId, parsed);
           }
@@ -1719,7 +1767,13 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           ) : noteMeta.concluded && body.structured ? (
             <AtaDocument body={body} tasks={(meta.tasks || []).filter((t) => t.noteId === noteId)} meta={meta}
               prevBlocks={prevBlocks} onOpenFile={openFileFromNote}
-              onReopen={() => patchNoteMeta({ concluded: false })} />
+              onReopen={() => patchNoteMeta({ concluded: false })}
+              checklist={{
+                busy: checklistBusy,
+                fila: (meta.iaQueue || []).some((x) => x.noteId === noteId && x.tipo === "checklist"),
+                erro: checklistErr,
+                onGerar: gerarChecklist,
+              }} />
           ) : (
             <Editor
               noteMeta={noteMeta} body={body} users={meta.users}
