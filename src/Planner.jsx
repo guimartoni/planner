@@ -87,11 +87,11 @@ function prepareData(data) {
     m = { ...m, mia: atividades };
     changed = true;
   }
-  /* As atividades passaram a viver em seções (Farejador / Inbound + RMKT) e a
-     ser programadas por semana — converte a lista antiga sem perder nada. */
-  if (Array.isArray(m.mia)) {
-    m = { ...m, mia: normalizaMia(m.mia) };
-    changed = true;
+  /* Mantém as atividades da MIA no formato atual: seções, semana, prioridade e
+     data de cadastro (as que vieram de antes desse campo ficam com 01/08). */
+  if (m.mia) {
+    const norm = normalizaMia(m.mia);
+    if (JSON.stringify(norm) !== JSON.stringify(m.mia)) { m = { ...m, mia: norm }; changed = true; }
   }
 
   /* A página de atividades da MIA mora na área MIA (a mesma que o Gui já usa);

@@ -19,23 +19,37 @@ export const SECOES_PADRAO = () => ([
   { id: uid(), nome: "Inbound + RMKT", atividades: [] },
 ]);
 
+/* As atividades que existiam antes do campo de data de cadastro entram com
+   01/08 — dali em diante cada uma nasce com a data do dia em que foi criada. */
+const CRIACAO_ANTIGA = () => `01/08/${todayBR().slice(6)}`;
+
+const normalizaAtividade = (a) => ({
+  id: a.id || uid(),
+  atividade: a.atividade || "",
+  semana: segundaDa(a.semana || a.data || ""),
+  criadaEm: a.criadaEm || CRIACAO_ANTIGA(),
+  prioridade: a.prioridade || "media",
+  concluida: !!a.concluida,
+  concluidaEm: a.concluidaEm || null,
+  atrasoManual: !!a.atrasoManual,
+  historico: a.historico || [],
+});
+
 /* meta.mia começou como uma lista simples de atividades; aqui ela vira o
    formato com seções, sem perder nada (o que fala de Farejador vai para a
-   seção do Farejador; o resto para Inbound + RMKT). */
+   seção do Farejador; o resto para Inbound + RMKT) e com os campos novos
+   preenchidos. */
 export function normalizaMia(mia) {
-  if (mia && !Array.isArray(mia) && Array.isArray(mia.secoes)) return mia;
+  if (mia && !Array.isArray(mia) && Array.isArray(mia.secoes)) {
+    return {
+      secoes: mia.secoes.map((s) => ({ ...s, atividades: (s.atividades || []).map(normalizaAtividade) })),
+      comentarios: mia.comentarios || "",
+    };
+  }
   const antigas = Array.isArray(mia) ? mia : [];
   const secoes = SECOES_PADRAO();
   antigas.forEach((a) => {
-    const item = {
-      id: a.id || uid(),
-      atividade: a.atividade || "",
-      semana: segundaDa(a.semana || a.data || ""),
-      criadaEm: a.criadaEm || "",
-      concluida: !!a.concluida,
-      concluidaEm: a.concluidaEm || null,
-      historico: a.historico || [],
-    };
+    const item = normalizaAtividade(a);
     const alvo = /farejador/i.test(item.atividade) ? secoes[0] : secoes[1];
     alvo.atividades.push(item);
   });
@@ -48,9 +62,16 @@ const ESTILO = {
   "a-executar": { rotulo: "🕒 A executar", background: "#EEF0F2", color: "#4B5563" },
 };
 
+const PRIORIDADE = {
+  alta: { rotulo: "🔴 Alta", background: "#FCEBEB", color: "#A32D2D", peso: 0 },
+  media: { rotulo: "🟡 Média", background: "#FBEEDB", color: "#B45309", peso: 1 },
+  baixa: { rotulo: "⚪ Baixa", background: "#EEF0F2", color: "#6B7280", peso: 2 },
+};
+const prioridadeDe = (a) => PRIORIDADE[a.prioridade] ? a.prioridade : "media";
+
 const celaCls = "border rounded-lg px-2 py-1.5 text-sm outline-none w-full";
 const celaStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151" };
-const L = { criada: 92, semana: 140, reprog: 122, status: 118, lixo: 22 };
+const L = { criada: 82, prioridade: 96, semana: 132, reprog: 116, status: 116, lixo: 22 };
 
 /* Data de criação: texto discreto que vira campo de data ao clicar. */
 function DataCriacao({ valor, onChange }) {
@@ -98,20 +119,14 @@ function SemanaCampo({ valor, onChange, placeholder = "definir semana" }) {
   );
 }
 
-/* Status: um toque abre o menu e você escolhe — nada muda sem escolher. */
-const OPCOES = [
-  { k: "a-executar", campos: { concluida: false, concluidaEm: null, atrasoManual: false } },
-  { k: "atraso", campos: { concluida: false, concluidaEm: null, atrasoManual: true } },
-  { k: "concluido", campos: (hoje) => ({ concluida: true, concluidaEm: hoje, atrasoManual: false }) },
-];
-
-function StatusCampo({ a, onEscolher }) {
+/* Etiqueta que abre um menu para escolher — nada muda com um toque só.
+   Usada no status e na prioridade. */
+function MenuCampo({ atual, estilos, opcoes, largura, titulo, onEscolher }) {
   const [aberto, setAberto] = useState(false);
-  const atual = statusDe(a);
-  const e = ESTILO[atual];
+  const e = estilos[atual];
   return (
-    <span className="relative shrink-0 self-center" style={{ width: L.status }}>
-      <button onClick={() => setAberto(!aberto)} title="Trocar o status"
+    <span className="relative shrink-0 self-center" style={{ width: largura }}>
+      <button onClick={() => setAberto(!aberto)} title={titulo}
         className="w-full px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
         style={{ background: e.background, color: e.color }}>
         {e.rotulo}
@@ -121,12 +136,12 @@ function StatusCampo({ a, onEscolher }) {
           <span className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
           <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border shadow-lg overflow-hidden"
             style={{ background: "#fff", borderColor: C.line, width: 150 }}>
-            {OPCOES.map((o) => (
+            {opcoes.map((o) => (
               <button key={o.k}
                 onClick={() => { onEscolher(typeof o.campos === "function" ? o.campos(todayBR()) : o.campos); setAberto(false); }}
                 className="w-full flex items-center gap-1.5 px-2.5 py-2 text-xs text-left hover:bg-gray-50"
-                style={{ color: ESTILO[o.k].color, fontWeight: o.k === atual ? 700 : 500 }}>
-                <span className="flex-1">{ESTILO[o.k].rotulo}</span>
+                style={{ color: estilos[o.k].color, fontWeight: o.k === atual ? 700 : 500 }}>
+                <span className="flex-1">{estilos[o.k].rotulo}</span>
                 {o.k === atual && <Check size={12} />}
               </button>
             ))}
@@ -136,6 +151,13 @@ function StatusCampo({ a, onEscolher }) {
     </span>
   );
 }
+
+const OPCOES_STATUS = [
+  { k: "a-executar", campos: { concluida: false, concluidaEm: null, atrasoManual: false } },
+  { k: "atraso", campos: { concluida: false, concluidaEm: null, atrasoManual: true } },
+  { k: "concluido", campos: (hoje) => ({ concluida: true, concluidaEm: hoje, atrasoManual: false }) },
+];
+const OPCOES_PRIORIDADE = ["alta", "media", "baixa"].map((k) => ({ k, campos: { prioridade: k } }));
 
 function Comentarios({ valor, onChange }) {
   const ref = useRef(null);
@@ -181,7 +203,7 @@ export default function MiaView({ mia, onChange }) {
     patchSecao(sid, {
       atividades: [...s.atividades, {
         id: uid(), atividade: d.atividade.trim(), semana: segundaDa(d.semana || ""),
-        criadaEm: todayBR(), concluida: false, historico: [],
+        prioridade: prioridadeDe(d), criadaEm: todayBR(), concluida: false, historico: [],
       }],
     });
     setDraft({ ...draft, [sid]: {} });
@@ -191,11 +213,16 @@ export default function MiaView({ mia, onChange }) {
   const emAtraso = todas.filter((a) => statusDe(a) === "atraso").length;
   const abertas = todas.filter((a) => !a.concluida).length;
   const naSemana = todas.filter((a) => !a.concluida && a.semana === semanaAtual()).length;
+  const altaPrioridade = todas.filter((a) => !a.concluida && prioridadeDe(a) === "alta").length;
 
+  /* Ordem nas seções: o que está atrasado primeiro, depois pela prioridade e,
+     por fim, pela semana. */
   const ordem = { atraso: 0, "a-executar": 1, concluido: 2 };
   const ordenar = (lista) => [...lista].sort((x, y) => {
     const s = ordem[statusDe(x)] - ordem[statusDe(y)];
-    return s || chaveSemana(x.semana).localeCompare(chaveSemana(y.semana));
+    if (s) return s;
+    const p = PRIORIDADE[prioridadeDe(x)].peso - PRIORIDADE[prioridadeDe(y)].peso;
+    return p || chaveSemana(x.semana).localeCompare(chaveSemana(y.semana));
   });
 
   const linha = (sid) => (a) => {
@@ -205,6 +232,9 @@ export default function MiaView({ mia, onChange }) {
         <DataCriacao valor={a.criadaEm} onChange={(v) => patchAtiv(sid, a.id, { criadaEm: v })} />
         <GrowCell value={a.atividade} onChange={(v) => patchAtiv(sid, a.id, { atividade: v })}
           className={celaCls} style={{ ...celaStyle, flex: "1 1 240px", minWidth: 160, opacity: a.concluida ? 0.6 : 1 }} />
+        <MenuCampo atual={prioridadeDe(a)} estilos={PRIORIDADE} opcoes={OPCOES_PRIORIDADE}
+          largura={L.prioridade} titulo="Trocar a prioridade"
+          onEscolher={(campos) => patchAtiv(sid, a.id, campos)} />
         <SemanaCampo valor={a.semana} onChange={(v) => mudarSemana(sid, a, v)} />
         <span className="shrink-0 self-center flex justify-center" style={{ width: L.reprog }}>
           {reprog > 0 && (
@@ -215,7 +245,9 @@ export default function MiaView({ mia, onChange }) {
             </button>
           )}
         </span>
-        <StatusCampo a={a} onEscolher={(campos) => patchAtiv(sid, a.id, campos)} />
+        <MenuCampo atual={statusDe(a)} estilos={ESTILO} opcoes={OPCOES_STATUS}
+          largura={L.status} titulo="Trocar o status"
+          onEscolher={(campos) => patchAtiv(sid, a.id, campos)} />
         <button onClick={() => patchSecao(sid, { atividades: dados.secoes.find((s) => s.id === sid).atividades.filter((x) => x.id !== a.id) })}
           className="shrink-0 self-center p-1" style={{ color: C.danger }} title="Excluir">
           <X size={14} />
@@ -228,6 +260,7 @@ export default function MiaView({ mia, onChange }) {
     <div className="flex gap-1.5 px-1 pb-1 text-xs font-semibold" style={{ color: "#6B7280" }}>
       <span style={{ width: L.criada }}>Criada</span>
       <span style={{ flex: "1 1 240px", minWidth: 160 }}>Atividade</span>
+      <span style={{ width: L.prioridade }}>Prioridade</span>
       <span style={{ width: L.semana }}>Semana</span>
       <span style={{ width: L.reprog }} />
       <span style={{ width: L.status }}>Status</span>
@@ -261,6 +294,9 @@ export default function MiaView({ mia, onChange }) {
         </span>
         {emAtraso > 0 && (
           <span className="px-2 py-1 rounded-full font-semibold" style={{ background: "#FCEBEB", color: "#A32D2D" }}>{emAtraso} em atraso</span>
+        )}
+        {altaPrioridade > 0 && (
+          <span className="px-2 py-1 rounded-full font-semibold" style={{ background: "#FBEEDB", color: "#B45309" }}>🔴 {altaPrioridade} de prioridade alta</span>
         )}
       </div>
 
@@ -306,6 +342,9 @@ export default function MiaView({ mia, onChange }) {
                 onKeyDown={(e) => { if (e.key === "Enter") adicionar(s.id); }}
                 placeholder={`Nova atividade em ${s.nome || "esta seção"}…`}
                 className={celaCls} style={{ ...celaStyle, flex: "1 1 240px", minWidth: 160 }} />
+              <MenuCampo atual={prioridadeDe(d)} estilos={PRIORIDADE} opcoes={OPCOES_PRIORIDADE}
+                largura={L.prioridade} titulo="Prioridade da nova atividade"
+                onEscolher={(campos) => setDraft({ ...draft, [s.id]: { ...d, ...campos } })} />
               <SemanaCampo valor={d.semana || ""} onChange={(v) => setDraft({ ...draft, [s.id]: { ...d, semana: segundaDa(v) } })} />
               <button onClick={() => adicionar(s.id)}
                 className="shrink-0 self-center flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
@@ -348,8 +387,10 @@ export default function MiaView({ mia, onChange }) {
               </div>
               {ordenar(g.itens).map((a) => {
                 const e = ESTILO[statusDe(a)];
+                const p = PRIORIDADE[prioridadeDe(a)];
                 return (
                   <div key={a.id} className="flex items-start gap-2 py-1 pl-2 text-sm" style={{ color: "#374151" }}>
+                    <span className="text-xs shrink-0 mt-0.5" title={`Prioridade ${p.rotulo.split(" ")[1]}`}>{p.rotulo.split(" ")[0]}</span>
                     <span className="text-xs px-1.5 py-0.5 rounded shrink-0 mt-0.5" style={{ background: C.mentionSoft, color: C.mention }}>{a.secao}</span>
                     <span className="flex-1" style={{ opacity: a.concluida ? 0.6 : 1 }}>{a.atividade}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold shrink-0" style={{ background: e.background, color: e.color }}>{e.rotulo}</span>
