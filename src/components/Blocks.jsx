@@ -255,7 +255,7 @@ const cellStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151"
 /* Célula de tabela que ganha altura quando o texto não cabe na largura da coluna.
    Continua sendo um texto de uma linha só: Enter não quebra linha (confirma a
    linha nova, como antes) e texto colado com quebras vira espaço. */
-function GrowCell({ value, onChange, placeholder, className, style, onKeyDown, onBlur }) {
+export function GrowCell({ value, onChange, placeholder, className, style, onKeyDown, onBlur }) {
   const ref = useRef(null);
   useAutoGrow(ref, value, { modo: "minimo" });
   return (
@@ -274,7 +274,7 @@ function GrowCell({ value, onChange, placeholder, className, style, onKeyDown, o
 }
 
 /* Campo de data com calendário nativo — grava sempre como DD/MM/AAAA */
-function DateBR({ value, onChange, className, style, ...rest }) {
+export function DateBR({ value, onChange, className, style, ...rest }) {
   const iso = (() => { const m = (value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; })();
   return (
     <input type="date" value={iso}

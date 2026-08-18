@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
+  BookOpen, Bot, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
   FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Redo2, Search as SearchIcon,
   Send, Trash2, Undo2, X,
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, MIA_BLOCKS, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, isMiaBlock, semMia, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { CHECKLIST_SCHEMA, TEXT_SCHEMA, buildChecklistPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -19,6 +19,7 @@ import Avatar from "./components/Avatar.jsx";
 import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
 import MeetingsView from "./components/MeetingsView.jsx";
+import MiaView, { statusDe } from "./components/MiaView.jsx";
 import ReportView from "./components/ReportView.jsx";
 import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
@@ -61,13 +62,36 @@ function prepareData(data) {
     m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Outbound", v: 2, blocksDef: OUTBOUND_BLOCKS() }] };
     changed = true;
   }
-  // Blocos da MIA no modelo Inbound já existente (antes do TEMA GERAL)
   const iIdx = m.templates.findIndex((t) => t.v === 2 && /inbound/i.test(t.name));
-  if (iIdx >= 0 && !(m.templates[iIdx].blocksDef || []).some((b) => /MIA/i.test(b.title || ""))) {
-    const def = [...(m.templates[iIdx].blocksDef || [])];
-    const pos = def.findIndex((b) => /TEMA GERAL/i.test(b.title || ""));
-    def.splice(pos >= 0 ? pos : def.length, 0, ...MIA_BLOCKS());
-    m = { ...m, templates: m.templates.map((t, i) => (i === iIdx ? { ...t, blocksDef: def } : t)) };
+
+  /* A MIA saiu do FUP de Inbound e virou aba própria (18/08/2026). Antes de
+     apagar os blocos, os "próximos passos" da página mais recente viram as
+     atividades programadas da nova aba — nada se perde. */
+  if (!m.mia) {
+    let recente = null;
+    m.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+      const b = bodies[n.id];
+      if (!b || !b.blocks) return;
+      const passos = b.blocks.find((x) => isMiaBlock(x) && x.type === "table" && (x.rows || []).length);
+      if (!passos) return;
+      if (!recente || dateKeyBR(n.createdAt) > dateKeyBR(recente.n.createdAt)) recente = { n, passos };
+    })));
+    const atividades = recente
+      ? recente.passos.rows.filter((r) => (r[0] || "").trim()).map((r) => ({
+        id: uid(),
+        atividade: r[0].trim().replace(/^\*\s*/, ""), // o * era a marca de importante
+        data: /^\d{2}\/\d{2}\/\d{4}$/.test(r[1] || "") ? r[1] : "",
+        concluida: false, historico: [],
+      }))
+      : [];
+    m = { ...m, mia: atividades };
+    changed = true;
+  }
+
+  // remove os blocos da MIA dos modelos (as páginas são limpas ao abrir)
+  const comMia = (t) => (t.blocksDef || []).some(isMiaBlock);
+  if (m.templates.some(comMia)) {
+    m = { ...m, templates: m.templates.map((t) => (comMia(t) ? { ...t, blocksDef: semMia(t.blocksDef) } : t)) };
     changed = true;
   }
   // Inbound: blocos duplos (reuniões, leads) + consolidado no topo
@@ -310,6 +334,8 @@ export default function Planner() {
         // campo de resumo da reunião foi aposentado (07/08/2026) — some das páginas antigas
         if (blocks.some((x) => /RESUMO DA REUNIÃO/i.test(x.title || "")))
           blocks = blocks.filter((x) => !/RESUMO DA REUNIÃO/i.test(x.title || ""));
+        // MIA virou aba própria (18/08/2026) — sai das páginas de FUP
+        if (blocks.some(isMiaBlock)) blocks = semMia(blocks);
         const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
         if (missing.length || blocks !== b.blocks) {
           b = { ...b, blocks: [...blocks, ...missing.map((tb) => ({ ...JSON.parse(JSON.stringify(tb)), id: uid() }))] };
@@ -995,7 +1021,7 @@ export default function Planner() {
         });
         // FUP Murilo e transcrição são de cada semana — começam em branco;
         // resumo de gravação foi aposentado
-        blocks = blocks
+        blocks = semMia(blocks)
           .filter((b) => !/RESUMO DA REUNIÃO/i.test(b.title || ""))
           .map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" }
             : b.type === "transcricao" ? { ...b, text: "" } : b));
@@ -1555,6 +1581,18 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
             ) : null;
           })()}
         </button>
+        <button onClick={() => setView(view === "mia" ? "editor" : "mia")}
+          className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
+          style={{ background: view === "mia" ? C.stamp : C.inkSoft, color: "#fff" }}>
+          <Bot size={15} /> <span className="hidden md:inline">MIA</span>
+          {(() => {
+            const atrasadas = (meta.mia || []).filter((a) => statusDe(a) === "atraso").length;
+            return atrasadas > 0 ? (
+              <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-white font-bold"
+                style={{ background: "#D64541", fontSize: 10 }}>{atrasadas}</span>
+            ) : null;
+          })()}
+        </button>
         <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg" style={{ background: C.inkSoft }}>
           <Avatar user={me} />
         </button>
@@ -1736,6 +1774,8 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                 resposta: meta.acervoResposta || null,
               }}
               onAsk={askAcervo} />
+          ) : view === "mia" ? (
+            <MiaView atividades={meta.mia || []} onChange={(mia) => setMeta((m) => ({ ...m, mia }))} />
           ) : view === "meetings" ? (
             <MeetingsView agenda={agenda} loading={agendaLoading} err={agendaErr} onRefresh={() => fetchAgenda(true)} />
           ) : view === "report" ? (

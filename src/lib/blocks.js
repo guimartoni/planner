@@ -25,11 +25,10 @@ export const FARMING_BLOCKS = () => ([
   TRANSCRICAO_BLOCK(),
 ]);
 
-/* Blocos da MIA (assistente de IA do Inbound): ajustes da semana + próximos passos */
-export const MIA_BLOCKS = () => ([
-  { id: uid(), type: "list", title: "🤖 MIA — AJUSTES FEITOS NA SEMANA", rows: [] },
-  { id: uid(), type: "table", title: "🤖 MIA — PRÓXIMOS PASSOS", cols: ["Próximo passo", "Data estimada"], rows: [] },
-]);
+/* A MIA saiu do FUP de Inbound (18/08/2026) e virou aba própria, com controle
+   de atividades programadas, reprogramações e status. */
+export const isMiaBlock = (b) => /\bMIA\b/i.test((b && b.title) || "");
+export const semMia = (blocks) => (blocks || []).filter((b) => !isMiaBlock(b));
 
 /* Consolidado do mês (Inbound): números somados de todos os FUPs do mês
    marcado no cabeçalho da página; recalculado sozinho ao abrir/editar. */
@@ -176,7 +175,6 @@ export const INBOUND_BLOCKS = () => ([
   LEADS_BLOCK(),
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
-  ...MIA_BLOCKS(),
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
   TRANSCRICAO_BLOCK(),
