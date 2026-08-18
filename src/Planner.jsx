@@ -19,7 +19,7 @@ import Avatar from "./components/Avatar.jsx";
 import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
 import MeetingsView from "./components/MeetingsView.jsx";
-import MiaView from "./components/MiaView.jsx";
+import MiaView, { normalizaMia } from "./components/MiaView.jsx";
 import ReportView from "./components/ReportView.jsx";
 import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
@@ -85,6 +85,12 @@ function prepareData(data) {
       }))
       : [];
     m = { ...m, mia: atividades };
+    changed = true;
+  }
+  /* As atividades passaram a viver em seções (Farejador / Inbound + RMKT) e a
+     ser programadas por semana — converte a lista antiga sem perder nada. */
+  if (Array.isArray(m.mia)) {
+    m = { ...m, mia: normalizaMia(m.mia) };
     changed = true;
   }
 
@@ -1808,7 +1814,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               </button>
             </div>
           ) : noteMeta.kind === "mia" ? (
-            <MiaView atividades={meta.mia || []} onChange={(mia) => setMeta((m) => ({ ...m, mia }))} />
+            <MiaView mia={meta.mia} onChange={(mia) => setMeta((m) => ({ ...m, mia }))} />
           ) : !body || bodyFor !== noteId ? (
             <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" color={C.ink} /></div>
           ) : noteMeta.concluded && body.structured ? (
