@@ -6,7 +6,12 @@ import { chaveSemana, segundaDa, statusDe } from "./semana.js";
 export const SECOES_PADRAO = () => ([
   { id: uid(), nome: "Farejador", atividades: [] },
   { id: uid(), nome: "Inbound + RMKT", atividades: [] },
+  { id: uid(), nome: "FinAdvisor", atividades: [] },
 ]);
+
+/* Seções que entram uma única vez em quem já usava a aba. O carimbo evita que
+   elas voltem sozinhas depois de excluídas. */
+const NOVAS_SECOES = [{ carimbo: "finadvisor", nome: "FinAdvisor", teste: /fin\s*d?advisor/i }];
 
 /* As atividades que existiam antes do campo de data de cadastro entram com
    01/08 — dali em diante cada uma nasce com a data do dia em que foi criada. */
@@ -30,10 +35,14 @@ const normalizaAtividade = (a) => ({
    preenchidos. */
 export function normalizaMia(mia) {
   if (mia && !Array.isArray(mia) && Array.isArray(mia.secoes)) {
-    return {
-      secoes: mia.secoes.map((s) => ({ ...s, atividades: (s.atividades || []).map(normalizaAtividade) })),
-      comentarios: mia.comentarios || "",
-    };
+    const secoes = mia.secoes.map((s) => ({ ...s, atividades: (s.atividades || []).map(normalizaAtividade) }));
+    const criadas = [...(mia.secoesCriadas || [])];
+    NOVAS_SECOES.forEach((n) => {
+      if (criadas.includes(n.carimbo)) return;
+      criadas.push(n.carimbo);
+      if (!secoes.some((s) => n.teste.test(s.nome || ""))) secoes.push({ id: uid(), nome: n.nome, atividades: [] });
+    });
+    return { secoes, comentarios: mia.comentarios || "", secoesCriadas: criadas };
   }
   const antigas = Array.isArray(mia) ? mia : [];
   const secoes = SECOES_PADRAO();
@@ -42,7 +51,7 @@ export function normalizaMia(mia) {
     const alvo = /farejador/i.test(item.atividade) ? secoes[0] : secoes[1];
     alvo.atividades.push(item);
   });
-  return { secoes, comentarios: (mia && mia.comentarios) || "" };
+  return { secoes, comentarios: (mia && mia.comentarios) || "", secoesCriadas: NOVAS_SECOES.map((n) => n.carimbo) };
 }
 
 export const ESTILO = {
