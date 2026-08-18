@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, Bot, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
+  BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
   FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Redo2, Search as SearchIcon,
   Send, Trash2, Undo2, X,
 } from "lucide-react";
@@ -19,7 +19,7 @@ import Avatar from "./components/Avatar.jsx";
 import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
 import MeetingsView from "./components/MeetingsView.jsx";
-import MiaView, { statusDe } from "./components/MiaView.jsx";
+import MiaView from "./components/MiaView.jsx";
 import ReportView from "./components/ReportView.jsx";
 import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
@@ -85,6 +85,25 @@ function prepareData(data) {
       }))
       : [];
     m = { ...m, mia: atividades };
+    changed = true;
+  }
+
+  /* A página de atividades da MIA mora na área MIA (a mesma que o Gui já usa);
+     é uma página especial (kind "mia") que abre o painel no lugar do editor. */
+  const nbMia = m.notebooks.find((nb) => /\bMIA\b/i.test(nb.name || ""));
+  const temPagMia = (nb) => (nb.sections || []).some((s) => (s.notes || []).some((n) => n.kind === "mia"));
+  if (nbMia && !temPagMia(nbMia)) {
+    const pag = { id: uid(), title: "🤖 Atividades programadas", createdAt: todayBR(), concluded: false, kind: "mia" };
+    const secs = nbMia.sections || [];
+    m = {
+      ...m,
+      notebooks: m.notebooks.map((nb) => nb.id !== nbMia.id ? nb : {
+        ...nb,
+        sections: secs.length
+          ? secs.map((s, i) => (i !== 0 ? s : { ...s, notes: [pag, ...(s.notes || [])] }))
+          : [{ id: uid(), name: "Geral", notes: [pag] }],
+      }),
+    };
     changed = true;
   }
 
@@ -1581,18 +1600,6 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
             ) : null;
           })()}
         </button>
-        <button onClick={() => setView(view === "mia" ? "editor" : "mia")}
-          className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
-          style={{ background: view === "mia" ? C.stamp : C.inkSoft, color: "#fff" }}>
-          <Bot size={15} /> <span className="hidden md:inline">MIA</span>
-          {(() => {
-            const atrasadas = (meta.mia || []).filter((a) => statusDe(a) === "atraso").length;
-            return atrasadas > 0 ? (
-              <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-white font-bold"
-                style={{ background: "#D64541", fontSize: 10 }}>{atrasadas}</span>
-            ) : null;
-          })()}
-        </button>
         <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg" style={{ background: C.inkSoft }}>
           <Avatar user={me} />
         </button>
@@ -1774,8 +1781,6 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                 resposta: meta.acervoResposta || null,
               }}
               onAsk={askAcervo} />
-          ) : view === "mia" ? (
-            <MiaView atividades={meta.mia || []} onChange={(mia) => setMeta((m) => ({ ...m, mia }))} />
           ) : view === "meetings" ? (
             <MeetingsView agenda={agenda} loading={agendaLoading} err={agendaErr} onRefresh={() => fetchAgenda(true)} />
           ) : view === "report" ? (
@@ -1802,6 +1807,8 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
                 Criar página
               </button>
             </div>
+          ) : noteMeta.kind === "mia" ? (
+            <MiaView atividades={meta.mia || []} onChange={(mia) => setMeta((m) => ({ ...m, mia }))} />
           ) : !body || bodyFor !== noteId ? (
             <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" color={C.ink} /></div>
           ) : noteMeta.concluded && body.structured ? (
