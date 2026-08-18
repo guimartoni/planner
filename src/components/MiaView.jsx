@@ -1,9 +1,13 @@
 import { useRef, useState } from "react";
-import { Check, History, Plus, X } from "lucide-react";
-import { C, dateKeyBR, todayBR, uid } from "../lib/util.js";
+import { Check, FileText, History, Plus, X } from "lucide-react";
+import { C, todayBR, uid } from "../lib/util.js";
 import { useAutoGrow } from "../lib/autoGrow.js";
-import { chaveSemana, ehSemanaAtual, faixaSemana, rotuloSemana, segundaDa, semanaAtual, statusDe } from "../lib/semana.js";
+import { ehSemanaAtual, faixaSemana, rotuloSemana, segundaDa, semanaAtual, statusDe } from "../lib/semana.js";
+import { ESTILO, PRIORIDADE, normalizaMia, ordenar, porSemana, prioridadeDe, todasAtividades } from "../lib/mia.js";
+import MiaAta from "./MiaAta.jsx";
 import { DateBR, GrowCell } from "./Blocks.jsx";
+
+export { normalizaMia };
 
 /* Aba da MIA: atividades programadas por SEMANA, divididas em seções que o
    usuário nomeia (padrão: Farejador e Inbound + RMKT), com comentários gerais
@@ -14,64 +18,9 @@ import { DateBR, GrowCell } from "./Blocks.jsx";
    pop-up). O status sai sozinho da semana: concluída, atraso (a semana já
    terminou) ou a executar. */
 
-export const SECOES_PADRAO = () => ([
-  { id: uid(), nome: "Farejador", atividades: [] },
-  { id: uid(), nome: "Inbound + RMKT", atividades: [] },
-]);
-
-/* As atividades que existiam antes do campo de data de cadastro entram com
-   01/08 — dali em diante cada uma nasce com a data do dia em que foi criada. */
-const CRIACAO_ANTIGA = () => `01/08/${todayBR().slice(6)}`;
-
-const normalizaAtividade = (a) => ({
-  id: a.id || uid(),
-  atividade: a.atividade || "",
-  semana: segundaDa(a.semana || a.data || ""),
-  criadaEm: a.criadaEm || CRIACAO_ANTIGA(),
-  prioridade: a.prioridade || "media",
-  concluida: !!a.concluida,
-  concluidaEm: a.concluidaEm || null,
-  atrasoManual: !!a.atrasoManual,
-  historico: a.historico || [],
-});
-
-/* meta.mia começou como uma lista simples de atividades; aqui ela vira o
-   formato com seções, sem perder nada (o que fala de Farejador vai para a
-   seção do Farejador; o resto para Inbound + RMKT) e com os campos novos
-   preenchidos. */
-export function normalizaMia(mia) {
-  if (mia && !Array.isArray(mia) && Array.isArray(mia.secoes)) {
-    return {
-      secoes: mia.secoes.map((s) => ({ ...s, atividades: (s.atividades || []).map(normalizaAtividade) })),
-      comentarios: mia.comentarios || "",
-    };
-  }
-  const antigas = Array.isArray(mia) ? mia : [];
-  const secoes = SECOES_PADRAO();
-  antigas.forEach((a) => {
-    const item = normalizaAtividade(a);
-    const alvo = /farejador/i.test(item.atividade) ? secoes[0] : secoes[1];
-    alvo.atividades.push(item);
-  });
-  return { secoes, comentarios: (mia && mia.comentarios) || "" };
-}
-
-const ESTILO = {
-  concluido: { rotulo: "✅ Concluído", background: C.stampSoft, color: C.stamp },
-  atraso: { rotulo: "⚠️ Atraso", background: "#FCEBEB", color: "#A32D2D" },
-  "a-executar": { rotulo: "🕒 A executar", background: "#EEF0F2", color: "#4B5563" },
-};
-
-const PRIORIDADE = {
-  alta: { rotulo: "🔴 Alta", background: "#FCEBEB", color: "#A32D2D", peso: 0 },
-  media: { rotulo: "🟡 Média", background: "#FBEEDB", color: "#B45309", peso: 1 },
-  baixa: { rotulo: "⚪ Baixa", background: "#EEF0F2", color: "#6B7280", peso: 2 },
-};
-const prioridadeDe = (a) => PRIORIDADE[a.prioridade] ? a.prioridade : "media";
-
 const celaCls = "border rounded-lg px-2 py-1.5 text-sm outline-none w-full";
 const celaStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151" };
-const L = { criada: 82, prioridade: 96, semana: 132, reprog: 116, status: 116, lixo: 22 };
+const L = { criada: 78, prioridade: 78, semana: 136, status: 116, lixo: 22 };
 
 /* Data de criação: texto discreto que vira campo de data ao clicar. */
 function DataCriacao({ valor, onChange }) {
@@ -101,15 +50,14 @@ function SemanaCampo({ valor, onChange, placeholder = "definir semana" }) {
     return (
       <DateBR value={valor} autoFocus onBlur={() => setEditando(false)}
         onChange={(v) => { onChange(v); setEditando(false); }}
-        className={celaCls} style={{ ...celaStyle, width: L.semana, flexShrink: 0 }} />
+        className={celaCls} style={{ ...celaStyle, width: "100%" }} />
     );
   }
   const atual = ehSemanaAtual(valor);
   return (
     <button onClick={() => setEditando(true)} title="Clique para escolher a semana"
-      className="shrink-0 self-center px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
+      className="w-full px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
       style={{
-        width: L.semana,
         background: valor ? (atual ? C.stampSoft : "#F1F2F4") : "transparent",
         color: valor ? (atual ? C.stamp : "#4B5563") : "#C3C8CF",
         border: valor ? "none" : "1px dashed #D9DDE3",
@@ -179,6 +127,9 @@ export default function MiaView({ mia, onChange }) {
   const [draft, setDraft] = useState({});          // rascunho por seção
   const [verHistorico, setVerHistorico] = useState(null);
   const [verConcluidas, setVerConcluidas] = useState({});
+  const [verAta, setVerAta] = useState(false);
+
+  if (verAta) return <MiaAta mia={dados} onVoltar={() => setVerAta(false)} />;
 
   const setSecoes = (secoes) => onChange({ ...dados, secoes });
   const patchSecao = (sid, campos) => setSecoes(dados.secoes.map((s) => (s.id === sid ? { ...s, ...campos } : s)));
@@ -209,21 +160,11 @@ export default function MiaView({ mia, onChange }) {
     setDraft({ ...draft, [sid]: {} });
   };
 
-  const todas = dados.secoes.flatMap((s) => s.atividades.map((a) => ({ ...a, secao: s.nome })));
+  const todas = todasAtividades(dados);
   const emAtraso = todas.filter((a) => statusDe(a) === "atraso").length;
   const abertas = todas.filter((a) => !a.concluida).length;
   const naSemana = todas.filter((a) => !a.concluida && a.semana === semanaAtual()).length;
   const altaPrioridade = todas.filter((a) => !a.concluida && prioridadeDe(a) === "alta").length;
-
-  /* Ordem nas seções: o que está atrasado primeiro, depois pela prioridade e,
-     por fim, pela semana. */
-  const ordem = { atraso: 0, "a-executar": 1, concluido: 2 };
-  const ordenar = (lista) => [...lista].sort((x, y) => {
-    const s = ordem[statusDe(x)] - ordem[statusDe(y)];
-    if (s) return s;
-    const p = PRIORIDADE[prioridadeDe(x)].peso - PRIORIDADE[prioridadeDe(y)].peso;
-    return p || chaveSemana(x.semana).localeCompare(chaveSemana(y.semana));
-  });
 
   const linha = (sid) => (a) => {
     const reprog = (a.historico || []).length;
@@ -235,13 +176,14 @@ export default function MiaView({ mia, onChange }) {
         <MenuCampo atual={prioridadeDe(a)} estilos={PRIORIDADE} opcoes={OPCOES_PRIORIDADE}
           largura={L.prioridade} titulo="Trocar a prioridade"
           onEscolher={(campos) => patchAtiv(sid, a.id, campos)} />
-        <SemanaCampo valor={a.semana} onChange={(v) => mudarSemana(sid, a, v)} />
-        <span className="shrink-0 self-center flex justify-center" style={{ width: L.reprog }}>
+        {/* semana e, logo abaixo, a etiqueta de reprogramada */}
+        <span className="shrink-0 self-center flex flex-col items-stretch gap-1" style={{ width: L.semana }}>
+          <SemanaCampo valor={a.semana} onChange={(v) => mudarSemana(sid, a, v)} />
           {reprog > 0 && (
             <button onClick={() => setVerHistorico({ sid, id: a.id })} title="Ver as reprogramações"
-              className="px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
+              className="px-1.5 py-0.5 rounded-full text-xs font-medium flex items-center justify-center gap-1"
               style={{ background: C.dateSoft, color: C.date }}>
-              <History size={12} /> reprogramado {reprog > 1 ? `(${reprog})` : ""}
+              <History size={11} /> reprogramada{reprog > 1 ? ` (${reprog})` : ""}
             </button>
           )}
         </span>
@@ -262,27 +204,26 @@ export default function MiaView({ mia, onChange }) {
       <span style={{ flex: "1 1 240px", minWidth: 160 }}>Atividade</span>
       <span style={{ width: L.prioridade }}>Prioridade</span>
       <span style={{ width: L.semana }}>Semana</span>
-      <span style={{ width: L.reprog }} />
       <span style={{ width: L.status }}>Status</span>
       <span style={{ width: L.lixo }} />
     </div>
   );
 
   /* Cronograma: junta as atividades de todas as seções, semana a semana. */
-  const semanas = [];
-  todas.forEach((a) => {
-    const k = a.semana || "";
-    const g = semanas.find((x) => x.semana === k);
-    if (g) g.itens.push(a);
-    else semanas.push({ semana: k, itens: [a] });
-  });
-  semanas.sort((x, y) => chaveSemana(x.semana).localeCompare(chaveSemana(y.semana)));
+  const semanas = porSemana(dados);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-5">
-      <h1 className="text-xl font-semibold mb-1" style={{ color: "#1F2937", fontFamily: "Georgia, serif" }}>
-        🤖 MIA — atividades programadas
-      </h1>
+      <div className="flex items-start gap-2 mb-1">
+        <h1 className="flex-1 text-xl font-semibold" style={{ color: "#1F2937", fontFamily: "Georgia, serif" }}>
+          🤖 MIA — atividades programadas
+        </h1>
+        <button onClick={() => setVerAta(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white shrink-0"
+          style={{ background: C.ink }}>
+          <FileText size={14} /> Gerar ata
+        </button>
+      </div>
       <p className="text-xs mb-3" style={{ color: "#9CA3AF" }}>
         As atividades são programadas por semana (qualquer dia que você escolher vira a segunda-feira daquela semana). Mudou a semana, entra como reprogramada e o histórico fica guardado — clique na etiqueta para ver.
       </p>
@@ -345,7 +286,9 @@ export default function MiaView({ mia, onChange }) {
               <MenuCampo atual={prioridadeDe(d)} estilos={PRIORIDADE} opcoes={OPCOES_PRIORIDADE}
                 largura={L.prioridade} titulo="Prioridade da nova atividade"
                 onEscolher={(campos) => setDraft({ ...draft, [s.id]: { ...d, ...campos } })} />
-              <SemanaCampo valor={d.semana || ""} onChange={(v) => setDraft({ ...draft, [s.id]: { ...d, semana: segundaDa(v) } })} />
+              <span className="shrink-0 self-center" style={{ width: L.semana }}>
+                <SemanaCampo valor={d.semana || ""} onChange={(v) => setDraft({ ...draft, [s.id]: { ...d, semana: segundaDa(v) } })} />
+              </span>
               <button onClick={() => adicionar(s.id)}
                 className="shrink-0 self-center flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white"
                 style={{ background: C.stamp }}>

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
+import { normalizaMia } from "./lib/mia.js";
 import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, isMiaBlock, semMia, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { CHECKLIST_SCHEMA, TEXT_SCHEMA, buildChecklistPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
@@ -19,7 +20,7 @@ import Avatar from "./components/Avatar.jsx";
 import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
 import MeetingsView from "./components/MeetingsView.jsx";
-import MiaView, { normalizaMia } from "./components/MiaView.jsx";
+import MiaView from "./components/MiaView.jsx";
 import ReportView from "./components/ReportView.jsx";
 import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
