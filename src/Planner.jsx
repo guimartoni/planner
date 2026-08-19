@@ -1542,21 +1542,15 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: C.appBg, fontFamily: "system-ui, sans-serif" }}>
-      {/* Barra superior */}
-      <header className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ background: C.ink }}>
-        <button onClick={() => setShowSide((v) => !v)} className="p-2 rounded-lg text-white md:hidden" style={{ background: C.inkSoft }}>
+      {/* Barra superior: ações em cima, áreas na linha de baixo — assim as
+          áreas cabem inteiras e dá para deslizar entre elas no celular. */}
+      <header className="shrink-0" style={{ background: C.ink }}>
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 pt-2 pb-1.5">
+        <button onClick={() => setShowSide((v) => !v)} className="p-2 rounded-lg text-white md:hidden shrink-0" style={{ background: C.inkSoft }}>
           <Menu size={18} />
         </button>
         <BookOpen size={18} color={C.stampSoft} className="shrink-0 hidden sm:block" />
-        <span className="text-white font-semibold hidden lg:inline whitespace-nowrap mr-1" style={{ fontFamily: "Georgia, serif" }}>Planner</span>
-        <NotebookTabs meta={meta} nbId={notebook?.id} onPick={(id) => {
-          const nb = meta.notebooks.find((n) => n.id === id);
-          const s0 = nb.sections[0] || null;
-          setNbId(id);
-          setSecId(s0 ? s0.id : null);
-          setNoteId(s0 && s0.notes.length ? s0.notes[0].id : null);
-          setView("editor");
-        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} onReorder={reorderNotebooks} onOpenTab={openNbInTab} />
+        <span className="text-white font-semibold hidden sm:inline whitespace-nowrap mr-1" style={{ fontFamily: "Georgia, serif" }}>Planner</span>
         <div className="flex-1" />
         <button onClick={undo} disabled={!canUndo} className="p-2 rounded-lg text-white"
           style={{ background: C.inkSoft, opacity: canUndo ? 1 : 0.35 }} title="Desfazer (Ctrl+Z)">
@@ -1607,9 +1601,22 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
             ) : null;
           })()}
         </button>
-        <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg" style={{ background: C.inkSoft }}>
+        <button onClick={() => setShowTeam(true)} className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg shrink-0" style={{ background: C.inkSoft }}>
           <Avatar user={me} />
         </button>
+      </div>
+
+      {/* Áreas (Diário, Inbound, Farming…) numa faixa só delas */}
+      <div className="px-2 sm:px-3 pb-1.5">
+        <NotebookTabs meta={meta} nbId={notebook?.id} onPick={(id) => {
+          const nb = meta.notebooks.find((n) => n.id === id);
+          const s0 = nb.sections[0] || null;
+          setNbId(id);
+          setSecId(s0 ? s0.id : null);
+          setNoteId(s0 && s0.notes.length ? s0.notes[0].id : null);
+          setView("editor");
+        }} onAdd={addNotebook} onRename={renameNotebook} onDelete={deleteNotebook} onReorder={reorderNotebooks} onOpenTab={openNbInTab} />
+      </div>
       </header>
 
       {tabsInfo.length > 0 && (
