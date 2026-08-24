@@ -1,5 +1,5 @@
 import { uid, todayBR } from "./util.js";
-import { consolidadoEff } from "./blocks.js";
+import { GRUPOS_SQL, consolidadoEff } from "./blocks.js";
 
 /* Funde dois estados do app sem perder criações de nenhum lado.
    Regra: união por id (páginas, tarefas, pessoas, modelos, recorrentes);
@@ -64,19 +64,19 @@ export function blocksToText(blocks) {
     else if (b.type === "consolidado") {
       const e = (k) => consolidadoEff(b, k);
       if (b.kind === "parcerias")
-        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M; calls com clientes ${e("callsClientes")}; novos parceiros ${e("novosParceiros")}`;
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${e("aprovados")}M; aprovados extraordinário ${e("aprovadosExtra")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M; calls com clientes ${e("callsClientes")}; novos parceiros ${e("novosParceiros")}`;
       else if (b.kind === "farming")
-        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: visitas realizadas ${e("visitas")}; calls de pipe realizadas ${e("callsPipe")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: visitas realizadas ${e("visitas")}; calls de pipe realizadas ${e("callsPipe")}; SQL aprovados ${e("aprovados")}M; aprovados extraordinário ${e("aprovadosExtra")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
       else if (b.kind === "outbound")
-        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: calls realizadas ${e("reunioes")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: calls realizadas ${e("reunioes")}; SQL aprovados ${e("aprovados")}M; aprovados extraordinário ${e("aprovadosExtra")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
       else
-        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
+        base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; aprovados extraordinário ${e("aprovadosExtra")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
     }
     else if (b.type === "list") base = `${b.title}:\n${(b.rows || []).map((r, i) => `${i + 1}. ${r}`).join("\n")}`;
     else if (b.type === "table") base = `${b.title} (${(b.cols || []).join(" · ")}):\n${(b.rows || []).map((r) => "- " + r.filter(Boolean).join(" · ")).join("\n")}`;
     else if (b.type === "sql") {
       const g = (name, arr) => `${name}:\n${(arr || []).map((r) => `\t${r[0]} - ${r[1]}M`).join("\n")}`;
-      base = `${b.title} (último comitê: ${b.comite || "?"})\n${g("APROVADOS", b.aprovados)}\n${g("RESSALVADOS", b.ressalvados)}\n${g("REPROVADOS", b.reprovados)}`;
+      base = `${b.title} (último comitê: ${b.comite || "?"})\n${GRUPOS_SQL.map(([k, rotulo]) => g(rotulo, b[k])).join("\n")}`;
     }
     if (b.comment && b.comment.trim()) base += `\nComentários: ${b.comment.trim()}`;
     return base;

@@ -390,7 +390,12 @@ function TableBlock({ b, onChange, onPromote, promoteLabel, users, sections }) {
 function SqlBlock({ b, onChange, users, sections }) {
   const num = (s) => { const m = String(s || "").replace(",", ".").match(/[\d.]+/); return m ? parseFloat(m[0]) : 0; };
   const fmtN = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
-  const groups = [["aprovados", "✅ Aprovados", "#1E6B4F"], ["ressalvados", "⚠️ Ressalvados", "#B45309"], ["reprovados", "❌ Reprovados", "#B3372F"]];
+  const groups = [
+    ["aprovados", "✅ Aprovados", "#1E6B4F"],
+    ["aprovadosExtra", "🟦 Aprovados extraordinário", "#0E6E8C"],
+    ["ressalvados", "⚠️ Ressalvados", "#B45309"],
+    ["reprovados", "❌ Reprovados", "#B3372F"],
+  ];
   const total = groups.reduce((a, [g]) => a + (b[g] || []).reduce((x, r) => x + num(r[1]), 0), 0);
   return (
     <BlockCard title={`${b.title} — total ${fmtN(total)}M`}

@@ -1,6 +1,6 @@
 import { dateKeyBR, todayBR } from "./util.js";
 import { bodyText, parseDraftTasks } from "./data.js";
-import { consolidadoEff } from "./blocks.js";
+import { GRUPOS_SQL, consolidadoEff } from "./blocks.js";
 
 /* ------------------------------------------------------------------ */
 /* Gerador LOCAL de atas — custo zero, instantâneo, sem IA.            */
@@ -105,9 +105,9 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
         const g = (arr) => (arr || []).reduce((a, r) => a + num(r[1]), 0);
         const nomes = (arr) => (arr || []).map((r) => `${r[0]} ${fmtN(num(r[1]))}M`).join(", ");
         const partes = [];
-        if ((b.aprovados || []).length) partes.push(`aprovados ${fmtN(g(b.aprovados))}M (${nomes(b.aprovados)})`);
-        if ((b.ressalvados || []).length) partes.push(`ressalvados ${fmtN(g(b.ressalvados))}M (${nomes(b.ressalvados)})`);
-        if ((b.reprovados || []).length) partes.push(`reprovados ${fmtN(g(b.reprovados))}M (${nomes(b.reprovados)})`);
+        GRUPOS_SQL.forEach(([k, rotulo]) => {
+          if ((b[k] || []).length) partes.push(`${rotulo.toLowerCase()} ${fmtN(g(b[k]))}M (${nomes(b[k])})`);
+        });
         if (partes.length) {
           decisoes.push(`${t}${b.comite ? ` (comitê ${b.comite})` : ""}: ${partes.join("; ")}${obs}`);
           stats.push(`comitê com ${partes.join(", ")}`);
@@ -118,15 +118,15 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
       if (b.type === "consolidado") {
         const e = (k) => consolidadoEff(b, k);
         if (b.kind === "parcerias") {
-          if (e("aprovados") || e("ressalvados") || e("reprovados") || e("callsClientes") || e("novosParceiros")) {
-            decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M; ${e("callsClientes")} calls com clientes; ${e("novosParceiros")} novos parceiros`);
+          if (e("aprovados") || e("aprovadosExtra") || e("ressalvados") || e("reprovados") || e("callsClientes") || e("novosParceiros")) {
+            decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: SQL aprovados ${fmtN(e("aprovados"))}M, aprovados extraordinário ${fmtN(e("aprovadosExtra"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M; ${e("callsClientes")} calls com clientes; ${e("novosParceiros")} novos parceiros`);
           }
         } else if (b.kind === "farming") {
-          if (e("visitas") || e("callsPipe") || e("aprovados") || e("ressalvados") || e("reprovados")) {
-            decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("visitas")} visitas realizadas, ${e("callsPipe")} calls de pipe realizadas; SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
+          if (e("visitas") || e("callsPipe") || e("aprovados") || e("aprovadosExtra") || e("ressalvados") || e("reprovados")) {
+            decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("visitas")} visitas realizadas, ${e("callsPipe")} calls de pipe realizadas; SQL aprovados ${fmtN(e("aprovados"))}M, aprovados extraordinário ${fmtN(e("aprovadosExtra"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
           }
-        } else if (e("reunioes") || e("leadsIn") || e("leadsRem") || e("aprovados") || e("ressalvados") || e("reprovados")) {
-          decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("reunioes")} reuniões realizadas, ${e("leadsIn")} leads inbound, ${e("leadsRem")} leads remarketing; SQL aprovados ${fmtN(e("aprovados"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
+        } else if (e("reunioes") || e("leadsIn") || e("leadsRem") || e("aprovados") || e("aprovadosExtra") || e("ressalvados") || e("reprovados")) {
+          decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("reunioes")} reuniões realizadas, ${e("leadsIn")} leads inbound, ${e("leadsRem")} leads remarketing; SQL aprovados ${fmtN(e("aprovados"))}M, aprovados extraordinário ${fmtN(e("aprovadosExtra"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
         }
       }
       if (b.type === "fup") {

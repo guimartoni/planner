@@ -7,7 +7,7 @@ import {
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { normalizaMia } from "./lib/mia.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, isMiaBlock, semMia, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, GRUPOS_SQL, isMiaBlock, semMia, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { CHECKLIST_SCHEMA, TEXT_SCHEMA, buildChecklistPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -568,7 +568,7 @@ export default function Planner() {
   const computeConsolidado = (tplId, mes, curId, curBlocks) => {
     const m = metaRef.current;
     const num = (s) => { const mm = String(s || "").replace(",", ".").match(/[\d.]+/); return mm ? parseFloat(mm[0]) : 0; };
-    const acc = { reunioes: 0, leadsIn: 0, leadsRem: 0, aprovados: 0, ressalvados: 0, reprovados: 0, callsClientes: 0, novosParceiros: 0, visitas: 0, callsPipe: 0 };
+    const acc = { reunioes: 0, leadsIn: 0, leadsRem: 0, aprovados: 0, aprovadosExtra: 0, ressalvados: 0, reprovados: 0, callsClientes: 0, novosParceiros: 0, visitas: 0, callsPipe: 0 };
     m.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
       if (n.templateId !== tplId) return;
       if ((n.mes || mesDe(n.createdAt)) !== mes) return;
@@ -582,9 +582,7 @@ export default function Planner() {
           else if (/REMARKETING/i.test(b.title || "")) acc.leadsRem += num(b.value);
         }
         if (b.type === "sql") {
-          acc.aprovados += (b.aprovados || []).reduce((a, r) => a + num(r[1]), 0);
-          acc.ressalvados += (b.ressalvados || []).reduce((a, r) => a + num(r[1]), 0);
-          acc.reprovados += (b.reprovados || []).reduce((a, r) => a + num(r[1]), 0);
+          GRUPOS_SQL.forEach(([g]) => { acc[g] += (b[g] || []).reduce((a, r) => a + num(r[1]), 0); });
         }
         // Parcerias: conta as linhas preenchidas de calls com clientes e novos parceiros
         if (b.type === "table" && /CALLS REALIZADAS COM CLIENTES/i.test(b.title || ""))

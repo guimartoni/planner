@@ -18,7 +18,7 @@ export const FARMING_BLOCKS = () => ([
   { id: uid(), type: "table", title: "🔜 VISITAS A AGENDAR", cols: ["Incorporadora", "Previsão", "Cidade/UF", "Observação"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS DE PIPE REALIZADAS", cols: ["Incorporadora", "Nº operações", "Pendência"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS DE PIPE A REALIZAR", cols: ["Incorporadora", "Observação"], rows: [] },
-  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
+  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], aprovadosExtra: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
@@ -29,6 +29,15 @@ export const FARMING_BLOCKS = () => ([
    de atividades programadas, reprogramações e status. */
 export const isMiaBlock = (b) => /\bMIA\b/i.test((b && b.title) || "");
 export const semMia = (blocks) => (blocks || []).filter((b) => !isMiaBlock(b));
+
+/* Grupos do bloco de SQL do comitê, na ordem em que aparecem: [chave, rótulo].
+   "Aprovados extraordinário" entrou em 18/08/2026, logo abaixo dos aprovados. */
+export const GRUPOS_SQL = [
+  ["aprovados", "APROVADOS"],
+  ["aprovadosExtra", "APROVADOS EXTRAORDINÁRIO"],
+  ["ressalvados", "RESSALVADOS"],
+  ["reprovados", "REPROVADOS"],
+];
 
 /* Consolidado do mês (Inbound): números somados de todos os FUPs do mês
    marcado no cabeçalho da página; recalculado sozinho ao abrir/editar. */
@@ -57,6 +66,7 @@ export const consolidadoItems = (b) => {
   const kind = (b && b.kind) || "";
   if (kind === "parcerias") return [
     ["aprovados", "✅ SQL aprovados", true],
+    ["aprovadosExtra", "🟦 SQL aprovados extraordinário", true],
     ["ressalvados", "⚠️ SQL ressalvados", true],
     ["reprovados", "❌ SQL reprovados", true],
     ["callsClientes", "📞 Calls com clientes", false],
@@ -66,12 +76,14 @@ export const consolidadoItems = (b) => {
     ["visitas", "📍 Visitas realizadas", false],
     ["callsPipe", "📞 Calls de pipe realizadas", false],
     ["aprovados", "✅ SQL aprovados", true],
+    ["aprovadosExtra", "🟦 SQL aprovados extraordinário", true],
     ["ressalvados", "⚠️ SQL ressalvados", true],
     ["reprovados", "❌ SQL reprovados", true],
   ];
   if (kind === "outbound") return [
     ["reunioes", "📞 Calls realizadas", false],
     ["aprovados", "✅ SQL aprovados", true],
+    ["aprovadosExtra", "🟦 SQL aprovados extraordinário", true],
     ["ressalvados", "⚠️ SQL ressalvados", true],
     ["reprovados", "❌ SQL reprovados", true],
   ];
@@ -80,6 +92,7 @@ export const consolidadoItems = (b) => {
     ["leadsIn", "📥 Leads inbound", false],
     ["leadsRem", "🔁 Leads remarketing", false],
     ["aprovados", "✅ SQL aprovados", true],
+    ["aprovadosExtra", "🟦 SQL aprovados extraordinário", true],
     ["ressalvados", "⚠️ SQL ressalvados", true],
     ["reprovados", "❌ SQL reprovados", true],
   ];
@@ -173,7 +186,7 @@ export const INBOUND_BLOCKS = () => ([
   CONSOLIDADO_BLOCK(),
   REUNIOES_BLOCK(),
   LEADS_BLOCK(),
-  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
+  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], aprovadosExtra: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
@@ -183,7 +196,7 @@ export const INBOUND_BLOCKS = () => ([
 export const OUTBOUND_BLOCKS = () => ([
   CONSOLIDADO_OUTBOUND_BLOCK(),
   { id: uid(), type: "metric", title: "🤝 REUNIÕES DA SEMANA", value: "" },
-  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
+  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ", comite: "", aprovados: [], aprovadosExtra: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "text", title: "📌 TEMA GERAL / OUTROS ASSUNTOS", text: "" },
   FUP_MURILO_BLOCK(),
@@ -210,7 +223,7 @@ export const PARCERIAS_BLOCKS = () => ([
   { id: uid(), type: "check", title: "🤖 DISPAROS SEMANAIS PARCEIROS (AI)", checked: false },
   { id: uid(), type: "table", title: "☕ CAFÉ DA MANHÃ / TALK PARCEIROS DO MÊS", cols: ["Parceiro", "Data"], rows: [] },
   LIVE_MES_BLOCK(),
-  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ ANTERIOR", comite: "", aprovados: [], ressalvados: [], reprovados: [] },
+  { id: uid(), type: "sql", title: "💰 SQL — COMITÊ ANTERIOR", comite: "", aprovados: [], aprovadosExtra: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS REALIZADAS COM PARCEIROS NA SEMANA", cols: ["Parceiro", "Observação"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS REALIZADAS COM CLIENTES NA SEMANA", cols: ["Cliente", "Observação"], rows: [] },
@@ -291,9 +304,9 @@ export function compareBlocks(prev, cur) {
       });
     }
     if (cb.type === "sql") {
-      ["aprovados", "ressalvados", "reprovados"].forEach((g) => {
+      GRUPOS_SQL.forEach(([g, rotulo]) => {
         const sum = (b) => (b[g] || []).reduce((a, r) => a + num(r[1]), 0);
-        facts.push(`SQL ${g.toUpperCase()}: ${fmtN(sum(cb))}M no comitê ${cb.comite || "?"} vs ${fmtN(sum(pb))}M no comitê ${pb.comite || "?"}`);
+        facts.push(`SQL ${rotulo}: ${fmtN(sum(cb))}M no comitê ${cb.comite || "?"} vs ${fmtN(sum(pb))}M no comitê ${pb.comite || "?"}`);
       });
     }
   });

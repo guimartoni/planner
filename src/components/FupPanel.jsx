@@ -1,4 +1,4 @@
-import { consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
+import { GRUPOS_SQL, consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
 
 /* Painel visual do FUP — renderiza TODOS os blocos preenchidos, na ordem
    do template, com deltas vs semana anterior. Funciona para Farming,
@@ -171,12 +171,17 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
   };
 
   const renderSql = (b) => {
-    const total = ["aprovados", "ressalvados", "reprovados"].reduce((a, g) => a + (b[g] || []).reduce((x, r) => x + num(r[1]), 0), 0);
+    const total = GRUPOS_SQL.reduce((a, [g]) => a + (b[g] || []).reduce((x, r) => x + num(r[1]), 0), 0);
     if (!total && !(b.comment || "").trim() && !showEmpty) return null;
     return (
       <Card key={b.id} title={b.title} sub={total ? `R$ ${fmtN(total)}M${b.comite ? ` · ${b.comite}` : ""}` : null}>
         {!total && <SemInfo />}
-        {[["aprovados", "aprovado", D.greenBg, D.green], ["ressalvados", "ressalvado", D.amberBg, D.amber], ["reprovados", "reprovado", D.redBg, D.red]].map(([g, label, bg, color]) =>
+        {[
+          ["aprovados", "aprovado", D.greenBg, D.green],
+          ["aprovadosExtra", "extraordinário", D.blueBg, D.blue],
+          ["ressalvados", "ressalvado", D.amberBg, D.amber],
+          ["reprovados", "reprovado", D.redBg, D.red],
+        ].map(([g, label, bg, color]) =>
           (b[g] || []).map((r, i) => (
             <Row key={g + i}>
               <span className="flex-1 break-words" style={{ color: D.text }}>{r[0]}</span>
