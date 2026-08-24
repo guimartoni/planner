@@ -30,6 +30,17 @@ export const FARMING_BLOCKS = () => ([
 export const isMiaBlock = (b) => /\bMIA\b/i.test((b && b.title) || "");
 export const semMia = (blocks) => (blocks || []).filter((b) => !isMiaBlock(b));
 
+/* Blocos aposentados: somem dos modelos e das páginas de FUP em aberto
+   (as atas concluídas guardam o histórico). */
+const APOSENTADOS = [
+  /RESUMO DA REUNIÃO/i,
+  /CALLS REALIZADAS COM PARCEIROS/i, // saiu de Parcerias em 19/08/2026
+];
+export const semAposentados = (blocks) => {
+  const out = (blocks || []).filter((b) => !APOSENTADOS.some((re) => re.test(b.title || "")));
+  return out.length === (blocks || []).length ? blocks : out; // sem mudança → mesma referência
+};
+
 /* Grupos do bloco de SQL do comitê, na ordem em que aparecem: [chave, rótulo].
    "Aprovados extraordinário" entrou em 18/08/2026, logo abaixo dos aprovados. */
 export const GRUPOS_SQL = [
@@ -225,7 +236,6 @@ export const PARCERIAS_BLOCKS = () => ([
   LIVE_MES_BLOCK(),
   { id: uid(), type: "sql", title: "💰 SQL — COMITÊ ANTERIOR", comite: "", aprovados: [], aprovadosExtra: [], ressalvados: [], reprovados: [] },
   { id: uid(), type: "table", title: "💰 SQL — A APRESENTAR", cols: ["Incorporadora", "Volume (M)"], rows: [] },
-  { id: uid(), type: "table", title: "📞 CALLS REALIZADAS COM PARCEIROS NA SEMANA", cols: ["Parceiro", "Observação"], rows: [] },
   { id: uid(), type: "table", title: "📞 CALLS REALIZADAS COM CLIENTES NA SEMANA", cols: ["Cliente", "Observação"], rows: [] },
   { id: uid(), type: "list", title: "🤝 NOVOS PARCEIROS CONTRATADOS NA SEMANA", rows: [] },
   { id: uid(), type: "text", title: "📌 COMENTÁRIOS GERAIS", text: "" },

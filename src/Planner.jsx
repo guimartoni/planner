@@ -7,7 +7,7 @@ import {
 import { C, USER_COLORS, dateKeyBR, isoToday, monthLabel, plusDaysBR, todayBR, uid } from "./lib/util.js";
 import { SEED_BODY, bodyText, reconcileTasks, seedMeta } from "./lib/data.js";
 import { normalizaMia } from "./lib/mia.js";
-import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, GRUPOS_SQL, isMiaBlock, semMia, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
+import { FARMING_BLOCKS, INBOUND_BLOCKS, OUTBOUND_BLOCKS, PARCERIAS_BLOCKS, FUP_MURILO_BLOCK, TRANSCRICAO_BLOCK, GRUPOS_SQL, isMiaBlock, semAposentados, semMia, CONSOLIDADO_BLOCK, CONSOLIDADO_PARCERIAS_BLOCK, CONSOLIDADO_FARMING_BLOCK, CONSOLIDADO_OUTBOUND_BLOCK, upgradeReunioes, upgradeLeads, upgradeVisitas, upgradeLive } from "./lib/blocks.js";
 import { CHECKLIST_SCHEMA, TEXT_SCHEMA, buildChecklistPrompt, callDirect, enqueueRequest, getAnthropicKey, getLegacyLocalKey, pollResponse, setRuntimeAnthropicKey } from "./ia.js";
 import { gerarAtaLocal, resumoSemanalLocal } from "./lib/ataLocal.js";
 import { fetchCalendarEvents } from "./agenda.js";
@@ -114,10 +114,11 @@ function prepareData(data) {
     changed = true;
   }
 
-  // remove os blocos da MIA dos modelos (as páginas são limpas ao abrir)
-  const comMia = (t) => (t.blocksDef || []).some(isMiaBlock);
-  if (m.templates.some(comMia)) {
-    m = { ...m, templates: m.templates.map((t) => (comMia(t) ? { ...t, blocksDef: semMia(t.blocksDef) } : t)) };
+  // remove dos modelos os blocos da MIA e os aposentados (as páginas são limpas ao abrir)
+  const limparDef = (def) => semAposentados(semMia(def));
+  const defMudou = (t) => limparDef(t.blocksDef || []).length !== (t.blocksDef || []).length;
+  if (m.templates.some(defMudou)) {
+    m = { ...m, templates: m.templates.map((t) => (defMudou(t) ? { ...t, blocksDef: limparDef(t.blocksDef) } : t)) };
     changed = true;
   }
   // Inbound: blocos duplos (reuniões, leads) + consolidado no topo
@@ -357,9 +358,8 @@ export default function Planner() {
         if (/outbound/i.test(tpl.name || "")) {
           if (!blocks.some((x) => x.type === "consolidado")) blocks = [CONSOLIDADO_OUTBOUND_BLOCK(), ...blocks];
         }
-        // campo de resumo da reunião foi aposentado (07/08/2026) — some das páginas antigas
-        if (blocks.some((x) => /RESUMO DA REUNIÃO/i.test(x.title || "")))
-          blocks = blocks.filter((x) => !/RESUMO DA REUNIÃO/i.test(x.title || ""));
+        // blocos aposentados (resumo da reunião, calls com parceiros) somem das páginas em aberto
+        blocks = semAposentados(blocks);
         // MIA virou aba própria (18/08/2026) — sai das páginas de FUP
         if (blocks.some(isMiaBlock)) blocks = semMia(blocks);
         const missing = (tpl.blocksDef || []).filter((tb) => !blocks.some((x) => x.title === tb.title));
@@ -1045,8 +1045,7 @@ export default function Planner() {
         });
         // FUP Murilo e transcrição são de cada semana — começam em branco;
         // resumo de gravação foi aposentado
-        blocks = semMia(blocks)
-          .filter((b) => !/RESUMO DA REUNIÃO/i.test(b.title || ""))
+        blocks = semAposentados(semMia(blocks))
           .map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" }
             : b.type === "transcricao" ? { ...b, text: "" } : b));
       }
