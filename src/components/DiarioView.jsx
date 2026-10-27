@@ -328,10 +328,10 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
 
       {/* lançamento rápido */}
       <div className="rounded-xl border shadow-sm p-2.5 mb-3 flex items-stretch gap-1.5" style={{ borderColor: C.line, background: C.paper }}>
-        <EstrelaPrioridade ligada={novo.prioridade} onClick={() => setNovo({ ...novo, prioridade: !novo.prioridade })} />
         <CaixaTexto value={novo.texto} onChange={(v) => setNovo({ ...novo, texto: v })} onEnter={adicionar}
           placeholder="Nova tarefa… (Enter lança · Shift+Enter pula linha)"
           style={{ ...celaStyle, flex: 1, minWidth: 0 }} />
+        <EstrelaPrioridade ligada={novo.prioridade} onClick={() => setNovo({ ...novo, prioridade: !novo.prioridade })} />
         <CampoFup valor={novo.fup} onChange={(v) => setNovo({ ...novo, fup: v })} />
         <CampoAssunto valor={novo.categoria} opcoes={assuntos} onCriar={criarAssunto(null)}
           onChange={(v) => setNovo({ ...novo, categoria: v })} />
@@ -368,10 +368,10 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
               {cabecalhoDia(g.dia, g.itens.length)}
               {ordenar(g.itens).map((t) => (
                 <div key={t.id} className="flex items-stretch gap-1.5 py-1 group">
-                  <EstrelaPrioridade ligada={t.prioridade} onClick={() => patch(t.id, { prioridade: !t.prioridade })} />
                   <CaixaTexto value={t.texto} onChange={(v) => patch(t.id, { texto: v })}
                     onEnter={(e) => document.activeElement && document.activeElement.blur()}
                     style={{ ...celaStyle, flex: 1, minWidth: 0, ...(t.prioridade ? { borderColor: "#F5D28A", background: "#FFFBEB" } : {}) }} />
+                  <EstrelaPrioridade ligada={t.prioridade} onClick={() => patch(t.id, { prioridade: !t.prioridade })} />
                   <CampoFup valor={t.fup} onChange={(v) => patch(t.id, { fup: v })} />
                   <CampoAssunto valor={t.categoria} opcoes={assuntos} onCriar={criarAssunto(t.id)}
                     onChange={(v) => patch(t.id, { categoria: v })} />
