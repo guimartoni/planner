@@ -161,7 +161,7 @@ export default function Editor({
   const iaBusy = iaState && (iaState.status === "fila" || iaState.status === "gerando");
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-5">
+    <div className={`${body.blocks && body.blocks.some((x) => x.type === "canal") ? "max-w-[1400px]" : "max-w-3xl"} mx-auto px-4 py-5`}>
       <input
         value={noteMeta.title}
         onChange={(e) => onTitle(e.target.value)}

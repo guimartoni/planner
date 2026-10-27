@@ -22,7 +22,7 @@ function Diretriz({ value, onChange }) {
   return (
     <textarea ref={ref} rows={1} value={value || ""} onChange={(e) => onChange(e.target.value)}
       placeholder="Diretriz / plano combinado…"
-      className={cel + " leading-5 resize-none overflow-hidden"} style={{ ...celStyle, flex: "3 1 260px", minWidth: 200 }} />
+      className={cel + " text-sm leading-6 resize-none overflow-hidden"} style={{ ...celStyle, width: "100%", minHeight: 40 }} />
   );
 }
 
@@ -81,49 +81,46 @@ export function CanalBlock({ b, onChange, users, sections, vals }) {
         </div>
       )}
 
-      <div className="hidden lg:flex gap-1.5 px-0.5 pb-1 text-xs font-semibold" style={{ color: "#6B7280" }}>
-        <span style={{ flex: "1.3 1 150px" }}>Ação</span>
-        <span style={{ width: 132 }}>Produto</span>
-        <span style={{ flex: "3 1 260px" }}>Diretriz / plano</span>
-        <span style={{ width: 150 }}>Custo previsto</span>
-        <span style={{ width: 96 }}>Gasto semana</span>
-        <span style={{ width: 96 }} title="Gasto no mês até aqui + previsto para as semanas que faltam">Projeção mês</span>
-        <span style={{ width: 18 }} />
-      </div>
       {acoes.map((a) => {
         const p = projecaoAcao(a, vals);
         return (
-          <div key={a.id} className="flex flex-wrap lg:flex-nowrap items-start gap-1.5 py-1 border-b lg:border-0" style={{ borderColor: "#EDEDE6" }}>
-            <GrowCell value={a.nome} onChange={(v) => setAcao(a.id, { nome: v })} placeholder="Ação"
-              className={cel + " font-semibold"} style={{ ...celStyle, flex: "1.3 1 150px", minWidth: 140 }} />
-            <select value={a.produto || ""} onChange={(e) => setAcao(a.id, { produto: e.target.value })}
-              className="border rounded-lg px-1.5 py-1.5 text-xs outline-none shrink-0"
-              style={{ ...celStyle, width: 132, ...(PROD_COR[a.produto] || {}) }}>
-              <option value="">— produto</option>
-              {PRODUTOS.map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <Diretriz value={a.diretriz} onChange={(v) => setAcao(a.id, { diretriz: v })} />
-            <span className="flex gap-1 shrink-0" style={{ width: 150 }}>
-              <input value={a.custo || ""} onChange={(e) => setAcao(a.id, { custo: e.target.value })} placeholder="R$ 0"
-                inputMode="decimal" className={cel} style={{ ...celStyle, width: 74 }} />
-              <select value={a.periodo || "semana"} onChange={(e) => setAcao(a.id, { periodo: e.target.value })}
-                className="border rounded-lg px-1 py-1.5 text-xs outline-none" style={{ ...celStyle, width: 72 }}
-                title="Custo por semana ou uma vez no mês">
-                <option value="semana">/semana</option>
-                <option value="mes">no mês</option>
+          <div key={a.id} className="rounded-lg border p-2 mb-2" style={{ borderColor: "#E3E5DE", background: "#FCFCFA" }}>
+            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+              <GrowCell value={a.nome} onChange={(v) => setAcao(a.id, { nome: v })} placeholder="Nome da ação"
+                className={cel + " font-semibold text-sm"} style={{ ...celStyle, flex: "1 1 220px", minWidth: 180 }} />
+              <select value={a.produto || ""} onChange={(e) => setAcao(a.id, { produto: e.target.value })}
+                className="border rounded-lg px-1.5 py-1.5 text-xs outline-none shrink-0"
+                style={{ ...celStyle, width: 140, ...(PROD_COR[a.produto] || {}) }}>
+                <option value="">— produto</option>
+                {PRODUTOS.map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
-            </span>
-            <input value={a.gasto || ""} onChange={(e) => setAcao(a.id, { gasto: e.target.value })} placeholder="R$ 0"
-              inputMode="decimal" className={cel + " shrink-0"} style={{ ...celStyle, width: 96, color: C.date, fontWeight: 600 }}
-              title="Quanto foi gasto de fato nesta semana" />
-            <span className="shrink-0 text-xs font-semibold px-1 py-1.5" style={{ width: 96, color: p.projecao ? "#374151" : "#C3C8CF" }}
-              title={`Orçamento do mês ${fmtR(p.orcamento)} · gasto até aqui ${fmtR(p.acum)}`}>
-              {p.projecao ? fmtR(p.projecao) : "—"}
-            </span>
-            <button onClick={() => onChange({ ...b, acoes: acoes.filter((x) => x.id !== a.id) })}
-              className="shrink-0 p-1 mt-0.5" style={{ color: C.danger }} title="Excluir ação">
-              <X size={13} />
-            </button>
+              <span className="flex items-center gap-1 shrink-0">
+                <span className="text-xs" style={{ color: "#9CA3AF" }}>Custo</span>
+                <input value={a.custo || ""} onChange={(e) => setAcao(a.id, { custo: e.target.value })} placeholder="R$ 0"
+                  inputMode="decimal" className={cel} style={{ ...celStyle, width: 82 }} />
+                <select value={a.periodo || "semana"} onChange={(e) => setAcao(a.id, { periodo: e.target.value })}
+                  className="border rounded-lg px-1 py-1.5 text-xs outline-none" style={{ ...celStyle, width: 86 }}
+                  title="Custo por semana ou uma vez no mês">
+                  <option value="semana">por semana</option>
+                  <option value="mes">no mês</option>
+                </select>
+              </span>
+              <span className="flex items-center gap-1 shrink-0">
+                <span className="text-xs" style={{ color: "#9CA3AF" }}>Gasto</span>
+                <input value={a.gasto || ""} onChange={(e) => setAcao(a.id, { gasto: e.target.value })} placeholder="R$ 0"
+                  inputMode="decimal" className={cel} style={{ ...celStyle, width: 82, color: C.date, fontWeight: 600 }}
+                  title="Quanto foi gasto de fato nesta semana" />
+              </span>
+              <span className="shrink-0 text-xs px-2 py-1.5 rounded-lg whitespace-nowrap" style={{ background: "#EEF0F2", color: "#4B5563" }}
+                title={`Orçamento do mês ${fmtR(p.orcamento)} · gasto até aqui ${fmtR(p.acum)} · projeção = gasto até aqui + semanas que faltam`}>
+                Proj. mês <b>{p.projecao ? fmtR(p.projecao) : "—"}</b>
+              </span>
+              <button onClick={() => onChange({ ...b, acoes: acoes.filter((x) => x.id !== a.id) })}
+                className="shrink-0 p-1 ml-auto" style={{ color: C.danger }} title="Excluir ação">
+                <X size={14} />
+              </button>
+            </div>
+            <Diretriz value={a.diretriz} onChange={(v) => setAcao(a.id, { diretriz: v })} />
           </div>
         );
       })}

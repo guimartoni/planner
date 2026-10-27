@@ -125,7 +125,7 @@ export default function AtaDocument({ body, tasks, meta, prevBlocks, onReopen, o
       return t;
     };
     return (
-      <div className="max-w-4xl mx-auto px-3 py-4">
+      <div className={`${(body.blocks || []).some((x) => x.type === "canal") ? "max-w-6xl" : "max-w-4xl"} mx-auto px-3 py-4`}>
         <div className="flex items-center justify-end gap-2 mb-2">
           <button onClick={() => baixarPdf(s0.titulo, s0.data)} disabled={pdfBusy}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: C.ink, opacity: pdfBusy ? 0.7 : 1 }}>

@@ -368,7 +368,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
         </div>
       )}
 
-      <div className="md:columns-2 gap-3">
+      <div className={resumoDem ? "" : "md:columns-2 gap-3"}>
         {B.map((b) => {
           if (b.type === "list") return renderList(b);
           if (b.type === "table") return renderTable(b);
