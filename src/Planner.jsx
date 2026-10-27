@@ -22,6 +22,7 @@ import IdentifyScreen from "./components/IdentifyScreen.jsx";
 import MeetingsView from "./components/MeetingsView.jsx";
 import MiaView from "./components/MiaView.jsx";
 import DiarioView from "./components/DiarioView.jsx";
+import { DEMANDA_BLOCKS, calcularMesDemanda, limparSemanaDemanda } from "./lib/demanda.js";
 import ReportView from "./components/ReportView.jsx";
 import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
@@ -62,6 +63,10 @@ export function prepareData(data) {
   }
   if (!m.templates.some((t) => /outbound/i.test(t.name))) {
     m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Outbound", v: 2, blocksDef: OUTBOUND_BLOCKS() }] };
+    changed = true;
+  }
+  if (!m.templates.some((t) => /demanda/i.test(t.name))) {
+    m = { ...m, templates: [...m.templates, { id: uid(), name: "FUP Semanal — Geração de Demanda", v: 2, blocksDef: DEMANDA_BLOCKS() }] };
     changed = true;
   }
   const iIdx = m.templates.findIndex((t) => t.v === 2 && /inbound/i.test(t.name));
@@ -626,6 +631,26 @@ export default function Planner() {
       : {}));
   }, [body && body.blocks, noteMeta && noteMeta.mes, noteId, bodyFor, cloudPhase]); // eslint-disable-line
 
+  /* Geração de Demanda: acumulados do mês (reuniões e gastos) para o painel */
+  useEffect(() => {
+    if (!body || !body.blocks || !noteMeta || bodyFor !== noteId) return;
+    const ri = body.blocks.findIndex((x) => x.type === "demandaResumo");
+    if (ri < 0) return;
+    const mes = noteMeta.mes || mesDe(noteMeta.createdAt);
+    const paginas = [];
+    metaRef.current.notebooks.forEach((nb) => nb.sections.forEach((s) => s.notes.forEach((n) => {
+      if (n.templateId !== noteMeta.templateId || (n.mes || mesDe(n.createdAt)) !== mes) return;
+      paginas.push(n.id === noteMeta.id ? body.blocks : (loadBody(n.id) || {}).blocks);
+    })));
+    if (!paginas.includes(body.blocks)) paginas.push(body.blocks);
+    const vals = calcularMesDemanda(paginas, noteMeta.createdAt);
+    const cur = body.blocks[ri];
+    if (cur.mes === mes && JSON.stringify(cur.vals) === JSON.stringify(vals)) return;
+    patchBody((b) => (b && b.blocks
+      ? { blocks: b.blocks.map((x, i) => (i === ri ? { ...x, mes, vals } : x)) }
+      : {}));
+  }, [body && body.blocks, noteMeta && noteMeta.mes, noteId, bodyFor, cloudPhase]); // eslint-disable-line
+
   const syncDraftTasks = () => {
     if (!body || !noteMeta || !notebook) return;
     const m = metaRef.current;
@@ -1057,6 +1082,7 @@ export default function Planner() {
         // FUP Murilo e transcrição são de cada semana — começam em branco;
         // resumo de gravação foi aposentado
         blocks = semAposentados(semMia(blocks))
+          .map(limparSemanaDemanda)
           .map((b) => (b.type === "fup" ? { ...b, date: "", text: "", comment: "" }
             : b.type === "transcricao" ? { ...b, text: "" } : b));
       }

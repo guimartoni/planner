@@ -1,4 +1,5 @@
 import { GRUPOS_SQL, consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
+import { fmtR, pct, projecaoAcao, reais, resumoDemanda } from "../lib/demanda.js";
 
 /* Painel visual do FUP — renderiza TODOS os blocos preenchidos, na ordem
    do template, com deltas vs semana anterior. Funciona para Farming,
@@ -250,6 +251,97 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
     );
   };
 
+  /* ---------- Geração de Demanda ---------- */
+  const PROD = { Capital: [D.blueBg, D.blue], Advisor: ["rgba(167,139,250,.16)", "#A78BFA"], "Capital + Advisor": [D.greenBg, D.green] };
+  const resumoDem = B.find((b) => b.type === "demandaResumo") || null;
+  const renderCanal = (b) => {
+    const vals = resumoDem && resumoDem.vals;
+    const metaTxt = (rot, real, meta) => {
+      const p = pct(Number(String(real).replace(",", ".")) || 0, Number(String(meta).replace(",", ".")) || 0);
+      return (
+        <span className="text-xs" style={{ color: D.sub }}>
+          {rot} <b style={{ color: D.text }}>{real || 0}</b>/{meta || 0}
+          {p !== null && <span style={{ color: p >= 100 ? D.green : p >= 60 ? D.amber : D.red }}> ({p}%)</span>}
+        </span>
+      );
+    };
+    return (
+      <Card key={b.id} title={b.title}>
+        {!b.naoAplica && (
+          <div className="flex gap-3 mb-2">{metaTxt("Capital", b.real.capital, b.meta.capital)}{metaTxt("Advisor", b.real.advisor, b.meta.advisor)}</div>
+        )}
+        {(b.acoes || []).map((a, i, arr) => {
+          const pr = projecaoAcao(a, vals);
+          const cor = PROD[a.produto];
+          return (
+            <div key={a.id} className="py-1.5 text-sm" style={{ borderBottom: i === arr.length - 1 ? "none" : `0.5px solid ${D.line}` }}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-semibold" style={{ color: D.text }}>{a.nome || "—"}</span>
+                {cor && <Badge bg={cor[0]} color={cor[1]}>{a.produto}</Badge>}
+                {(reais(a.custo) > 0 || reais(a.gasto) > 0) && (
+                  <span className="ml-auto text-xs" style={{ color: D.mut }}>
+                    {reais(a.custo) > 0 && <>prev. {fmtR(reais(a.custo))}{a.periodo === "mes" ? " no mês" : "/sem"}</>}
+                    {reais(a.gasto) > 0 && <> · gasto <b style={{ color: D.amber }}>{fmtR(reais(a.gasto))}</b></>}
+                    {pr.projecao > 0 && <> · proj. mês {fmtR(pr.projecao)}</>}
+                  </span>
+                )}
+              </div>
+              {a.diretriz && <p className="text-xs mt-0.5 whitespace-pre-wrap leading-5" style={{ color: D.sub }}>{a.diretriz}</p>}
+            </div>
+          );
+        })}
+        <Comment b={b} />
+      </Card>
+    );
+  };
+  const renderDemandaResumo = (b) => {
+    const r = resumoDemanda(B, b.vals);
+    const caixa = (rot, val, cor, sub) => (
+      <div key={rot} className="rounded-lg border px-3 py-2" style={{ borderColor: D.line, background: D.bg }}>
+        <p className="text-xs" style={{ color: D.mut }}>{rot}</p>
+        <p className="text-lg font-semibold" style={{ color: cor || D.text }}>{val}</p>
+        {sub && <p className="text-xs" style={{ color: D.mut }}>{sub}</p>}
+      </div>
+    );
+    const pc = (x, m) => { const p = pct(x, m); return p === null ? "" : `${p}% da meta`; };
+    return (
+      <div key={b.id} className="rounded-xl border p-4 mb-3" style={{ borderColor: D.line, background: D.card, columnSpan: "all" }}>
+        <p className="text-sm font-semibold mb-2.5" style={{ color: D.text }}>{b.title}{b.mes && <span className="font-normal ml-1.5" style={{ color: D.mut }}>· {b.mes}</span>}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+          {caixa("Capital na semana", `${r.semana.realC} / ${r.semana.metaC}`, D.blue, pc(r.semana.realC, r.semana.metaC))}
+          {caixa("Advisor na semana", `${r.semana.realA} / ${r.semana.metaA}`, "#A78BFA", pc(r.semana.realA, r.semana.metaA))}
+          {caixa("Capital no mês", `${r.mes.realC} / ${r.mes.metaC}`, D.blue, pc(r.mes.realC, r.mes.metaC))}
+          {caixa("Advisor no mês", `${r.mes.realA} / ${r.mes.metaA}`, "#A78BFA", pc(r.mes.realA, r.mes.metaA))}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+          {caixa("Custo previsto semana", fmtR(r.semana.custo))}
+          {caixa("Gasto na semana", fmtR(r.semana.gasto), D.amber)}
+          {caixa("Gasto no mês", fmtR(r.mes.acum), D.amber)}
+          {caixa("Orçamento do mês", fmtR(r.mes.orcamento))}
+          {caixa("Projeção de fechamento", fmtR(r.mes.projecao), r.mes.projecao > r.mes.orcamento ? D.red : D.green)}
+        </div>
+        <table className="w-full text-xs">
+          <thead><tr style={{ color: D.mut }}>
+            {["Canal", "Capital", "Advisor", "Custo/sem", "Gasto sem", "Gasto mês", "Projeção"].map((h) => <th key={h} className="text-left font-medium px-1.5 py-1" style={{ borderBottom: `0.5px solid ${D.line}` }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {r.canais.map((c) => (
+              <tr key={c.id} style={{ color: D.sub }}>
+                <td className="px-1.5 py-1 font-semibold" style={{ color: D.text }}>{c.title}</td>
+                <td className="px-1.5 py-1">{c.naoAplica ? "—" : `${c.realC}/${c.metaC}`}</td>
+                <td className="px-1.5 py-1">{c.naoAplica ? "—" : `${c.realA}/${c.metaA}`}</td>
+                <td className="px-1.5 py-1">{fmtR(c.custo)}</td>
+                <td className="px-1.5 py-1" style={{ color: D.amber }}>{fmtR(c.gasto)}</td>
+                <td className="px-1.5 py-1">{fmtR(c.acum)}</td>
+                <td className="px-1.5 py-1 font-semibold" style={{ color: D.text }}>{fmtR(c.projecao)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="rounded-2xl p-4" style={{ background: D.bg }}>
       {header && (
@@ -287,6 +379,8 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
           if (b.type === "fup") return renderFup(b);
           if (b.type === "consolidado") return renderConsolidado(b);
           if (b.type === "reunioes" || b.type === "leads") return renderReunioes(b);
+          if (b.type === "canal") return renderCanal(b);
+          if (b.type === "demandaResumo") return renderDemandaResumo(b);
           return null;
         })}
       </div>

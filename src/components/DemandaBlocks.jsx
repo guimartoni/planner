@@ -1,0 +1,201 @@
+import { useRef } from "react";
+import { Plus, X } from "lucide-react";
+import { C, uid } from "../lib/util.js";
+import { useAutoGrow } from "../lib/autoGrow.js";
+import { PRODUTOS, fmtR, pct, projecaoAcao, reais, resumoDemanda } from "../lib/demanda.js";
+import { BlockCard, BlockComment, GrowCell } from "./Blocks.jsx";
+
+/* Blocos do FUP de Geração de Demanda: canal (metas, realizado e ações com
+   custo) e o painel da semana com a projeção do mês. Regras em lib/demanda.js. */
+
+const cel = "border rounded-lg px-2 py-1.5 text-xs outline-none w-full";
+const celStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#374151" };
+const PROD_COR = {
+  Capital: { background: "#E3ECF7", color: "#2E6BB0" },
+  Advisor: { background: "#ECE8F6", color: "#5B4A9E" },
+  "Capital + Advisor": { background: "#E4F1EB", color: "#1E6B4F" },
+};
+
+function Diretriz({ value, onChange }) {
+  const ref = useRef(null);
+  useAutoGrow(ref, value, { modo: "minimo" });
+  return (
+    <textarea ref={ref} rows={1} value={value || ""} onChange={(e) => onChange(e.target.value)}
+      placeholder="Diretriz / plano combinado…"
+      className={cel + " leading-5 resize-none overflow-hidden"} style={{ ...celStyle, flex: "3 1 260px", minWidth: 200 }} />
+  );
+}
+
+/* barrinha de atingimento da meta */
+function Meta({ rotulo, meta, real, onMeta, onReal, cor }) {
+  const p = pct(Number(String(real).replace(",", ".")) || 0, Number(String(meta).replace(",", ".")) || 0);
+  return (
+    <div className="flex-1 min-w-[220px] rounded-lg border px-3 py-2" style={{ borderColor: "#E3E5DE", background: "#fff" }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={PROD_COR[rotulo]}>{rotulo}</span>
+        {p !== null && (
+          <span className="text-xs font-semibold" style={{ color: p >= 100 ? C.stamp : p >= 60 ? C.date : C.danger }}>{p}% da meta</span>
+        )}
+      </div>
+      <div className="flex items-end gap-2">
+        <label className="flex-1">
+          <span className="block text-xs" style={{ color: "#9CA3AF" }}>Meta semanal</span>
+          <input value={meta} onChange={(e) => onMeta(e.target.value)} inputMode="numeric" placeholder="0"
+            className="w-full border rounded-lg px-2 py-1 text-lg font-semibold outline-none" style={{ ...celStyle, color: "#6B7280" }} />
+        </label>
+        <label className="flex-1">
+          <span className="block text-xs" style={{ color: "#9CA3AF" }}>Realizadas</span>
+          <input value={real} onChange={(e) => onReal(e.target.value)} inputMode="numeric" placeholder="0"
+            className="w-full border rounded-lg px-2 py-1 text-lg font-semibold outline-none" style={{ ...celStyle, color: cor }} />
+        </label>
+      </div>
+      {p !== null && (
+        <div className="h-1.5 rounded-full mt-2 overflow-hidden" style={{ background: "#EEF0F2" }}>
+          <div className="h-full rounded-full" style={{ width: `${Math.min(100, p)}%`, background: p >= 100 ? C.stamp : p >= 60 ? "#E8B45A" : "#E0635C" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CanalBlock({ b, onChange, users, sections, vals }) {
+  const acoes = b.acoes || [];
+  const setAcao = (id, campos) => onChange({ ...b, acoes: acoes.map((a) => (a.id === id ? { ...a, ...campos } : a)) });
+  const linha = resumoDemanda([b], vals).canais[0];
+  return (
+    <BlockCard title={b.title}
+      extra={
+        <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: "#6B7280" }}>
+          <input type="checkbox" checked={!!b.naoAplica} onChange={(e) => onChange({ ...b, naoAplica: e.target.checked })} />
+          sem meta de reuniões
+        </label>
+      }>
+      {!b.naoAplica && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          <Meta rotulo="Capital" meta={b.meta.capital} real={b.real.capital} cor="#2E6BB0"
+            onMeta={(v) => onChange({ ...b, meta: { ...b.meta, capital: v } })}
+            onReal={(v) => onChange({ ...b, real: { ...b.real, capital: v } })} />
+          <Meta rotulo="Advisor" meta={b.meta.advisor} real={b.real.advisor} cor="#5B4A9E"
+            onMeta={(v) => onChange({ ...b, meta: { ...b.meta, advisor: v } })}
+            onReal={(v) => onChange({ ...b, real: { ...b.real, advisor: v } })} />
+        </div>
+      )}
+
+      <div className="hidden lg:flex gap-1.5 px-0.5 pb-1 text-xs font-semibold" style={{ color: "#6B7280" }}>
+        <span style={{ flex: "1.3 1 150px" }}>Ação</span>
+        <span style={{ width: 132 }}>Produto</span>
+        <span style={{ flex: "3 1 260px" }}>Diretriz / plano</span>
+        <span style={{ width: 150 }}>Custo previsto</span>
+        <span style={{ width: 96 }}>Gasto semana</span>
+        <span style={{ width: 96 }} title="Gasto no mês até aqui + previsto para as semanas que faltam">Projeção mês</span>
+        <span style={{ width: 18 }} />
+      </div>
+      {acoes.map((a) => {
+        const p = projecaoAcao(a, vals);
+        return (
+          <div key={a.id} className="flex flex-wrap lg:flex-nowrap items-start gap-1.5 py-1 border-b lg:border-0" style={{ borderColor: "#EDEDE6" }}>
+            <GrowCell value={a.nome} onChange={(v) => setAcao(a.id, { nome: v })} placeholder="Ação"
+              className={cel + " font-semibold"} style={{ ...celStyle, flex: "1.3 1 150px", minWidth: 140 }} />
+            <select value={a.produto || ""} onChange={(e) => setAcao(a.id, { produto: e.target.value })}
+              className="border rounded-lg px-1.5 py-1.5 text-xs outline-none shrink-0"
+              style={{ ...celStyle, width: 132, ...(PROD_COR[a.produto] || {}) }}>
+              <option value="">— produto</option>
+              {PRODUTOS.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <Diretriz value={a.diretriz} onChange={(v) => setAcao(a.id, { diretriz: v })} />
+            <span className="flex gap-1 shrink-0" style={{ width: 150 }}>
+              <input value={a.custo || ""} onChange={(e) => setAcao(a.id, { custo: e.target.value })} placeholder="R$ 0"
+                inputMode="decimal" className={cel} style={{ ...celStyle, width: 74 }} />
+              <select value={a.periodo || "semana"} onChange={(e) => setAcao(a.id, { periodo: e.target.value })}
+                className="border rounded-lg px-1 py-1.5 text-xs outline-none" style={{ ...celStyle, width: 72 }}
+                title="Custo por semana ou uma vez no mês">
+                <option value="semana">/semana</option>
+                <option value="mes">no mês</option>
+              </select>
+            </span>
+            <input value={a.gasto || ""} onChange={(e) => setAcao(a.id, { gasto: e.target.value })} placeholder="R$ 0"
+              inputMode="decimal" className={cel + " shrink-0"} style={{ ...celStyle, width: 96, color: C.date, fontWeight: 600 }}
+              title="Quanto foi gasto de fato nesta semana" />
+            <span className="shrink-0 text-xs font-semibold px-1 py-1.5" style={{ width: 96, color: p.projecao ? "#374151" : "#C3C8CF" }}
+              title={`Orçamento do mês ${fmtR(p.orcamento)} · gasto até aqui ${fmtR(p.acum)}`}>
+              {p.projecao ? fmtR(p.projecao) : "—"}
+            </span>
+            <button onClick={() => onChange({ ...b, acoes: acoes.filter((x) => x.id !== a.id) })}
+              className="shrink-0 p-1 mt-0.5" style={{ color: C.danger }} title="Excluir ação">
+              <X size={13} />
+            </button>
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-2 mt-2">
+        <button onClick={() => onChange({ ...b, acoes: [...acoes, { id: uid(), nome: "", produto: "", diretriz: "", custo: "", periodo: "semana", gasto: "" }] })}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: "#E2E5E9", color: "#374151" }}>
+          <Plus size={12} /> Ação
+        </button>
+        <span className="ml-auto text-xs" style={{ color: "#6B7280" }}>
+          Custo semanal <b>{fmtR(linha.custo)}</b> · gasto na semana <b style={{ color: C.date }}>{fmtR(linha.gasto)}</b> · projeção do mês <b>{fmtR(linha.projecao)}</b>
+        </span>
+      </div>
+      <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
+    </BlockCard>
+  );
+}
+
+const Num = ({ rotulo, valor, sub, cor }) => (
+  <div className="rounded-lg border px-3 py-2" style={{ borderColor: "#E3E5DE", background: "#fff" }}>
+    <p className="text-xs" style={{ color: "#6B7280" }}>{rotulo}</p>
+    <p className="text-xl font-semibold" style={{ color: cor || C.stamp }}>{valor}</p>
+    {sub && <p className="text-xs" style={{ color: "#9CA3AF" }}>{sub}</p>}
+  </div>
+);
+
+export function DemandaResumoBlock({ b, blocks }) {
+  const r = resumoDemanda(blocks, b.vals);
+  const v = b.vals || {};
+  const pc = (x, m) => { const p = pct(x, m); return p === null ? "" : ` · ${p}%`; };
+  return (
+    <BlockCard title={`${b.title}${b.mes ? ` — ${b.mes}` : ""}`}
+      hint={`Calculado sozinho a partir dos canais abaixo. Mês = soma dos FUPs do mês (${v.semanasMes || "?"} semanas; ${v.semanasRestantes ?? "?"} depois desta).`}>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Reuniões</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+        <Num rotulo="Capital na semana" valor={`${r.semana.realC} / ${r.semana.metaC}`} sub={`realizadas / meta${pc(r.semana.realC, r.semana.metaC)}`} cor="#2E6BB0" />
+        <Num rotulo="Advisor na semana" valor={`${r.semana.realA} / ${r.semana.metaA}`} sub={`realizadas / meta${pc(r.semana.realA, r.semana.metaA)}`} cor="#5B4A9E" />
+        <Num rotulo="Capital no mês" valor={`${r.mes.realC} / ${r.mes.metaC}`} sub={`acumulado / meta do mês${pc(r.mes.realC, r.mes.metaC)}`} cor="#2E6BB0" />
+        <Num rotulo="Advisor no mês" valor={`${r.mes.realA} / ${r.mes.metaA}`} sub={`acumulado / meta do mês${pc(r.mes.realA, r.mes.metaA)}`} cor="#5B4A9E" />
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Custos</p>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
+        <Num rotulo="Custo previsto da semana" valor={fmtR(r.semana.custo)} sub="soma das ações /semana" />
+        <Num rotulo="Gasto na semana" valor={fmtR(r.semana.gasto)} cor={C.date} />
+        <Num rotulo="Gasto no mês até agora" valor={fmtR(r.mes.acum)} cor={C.date} />
+        <Num rotulo="Orçamento do mês" valor={fmtR(r.mes.orcamento)} sub="custo semanal × semanas + custos do mês" />
+        <Num rotulo="Projeção de fechamento" valor={fmtR(r.mes.projecao)} sub="gasto até agora + semanas que faltam"
+          cor={r.mes.projecao > r.mes.orcamento ? C.danger : C.stamp} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ color: "#6B7280" }}>
+              {["Canal", "Capital (real/meta)", "Advisor (real/meta)", "Custo /semana", "Gasto semana", "Gasto mês", "Projeção mês"].map((h) => (
+                <th key={h} className="text-left font-semibold px-2 py-1 border-b whitespace-nowrap" style={{ borderColor: C.line }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {r.canais.map((c) => (
+              <tr key={c.id} style={{ color: "#374151" }}>
+                <td className="px-2 py-1.5 border-b font-semibold whitespace-nowrap" style={{ borderColor: "#EDEDE6" }}>{c.title}</td>
+                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{c.naoAplica ? "—" : `${c.realC} / ${c.metaC}`}</td>
+                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{c.naoAplica ? "—" : `${c.realA} / ${c.metaA}`}</td>
+                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{fmtR(c.custo)}</td>
+                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6", color: C.date }}>{fmtR(c.gasto)}</td>
+                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{fmtR(c.acum)}</td>
+                <td className="px-2 py-1.5 border-b font-semibold" style={{ borderColor: "#EDEDE6" }}>{fmtR(c.projecao)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </BlockCard>
+  );
+}

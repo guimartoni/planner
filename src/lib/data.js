@@ -1,4 +1,5 @@
 import { uid, todayBR } from "./util.js";
+import { demandaToText } from "./demanda.js";
 import { GRUPOS_SQL, consolidadoEff } from "./blocks.js";
 
 /* Funde dois estados do app sem perder criações de nenhum lado.
@@ -72,6 +73,7 @@ export function blocksToText(blocks) {
       else
         base = `${b.title}${b.mes ? ` (${b.mes})` : ""}: reuniões realizadas ${e("reunioes")}; leads inbound ${e("leadsIn")}; leads remarketing ${e("leadsRem")}; SQL aprovados ${e("aprovados")}M; aprovados extraordinário ${e("aprovadosExtra")}M; ressalvados ${e("ressalvados")}M; reprovados ${e("reprovados")}M`;
     }
+    else if (b.type === "canal" || b.type === "demandaResumo") base = demandaToText(b, blocks);
     else if (b.type === "list") base = `${b.title}:\n${(b.rows || []).map((r, i) => `${i + 1}. ${r}`).join("\n")}`;
     else if (b.type === "table") base = `${b.title} (${(b.cols || []).join(" · ")}):\n${(b.rows || []).map((r) => "- " + r.filter(Boolean).join(" · ")).join("\n")}`;
     else if (b.type === "sql") {

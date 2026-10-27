@@ -4,6 +4,7 @@ import { C } from "../lib/util.js";
 import { useAutoGrow } from "../lib/autoGrow.js";
 import { consolidadoEff, consolidadoItems, noShowDe } from "../lib/blocks.js";
 import Avatar from "./Avatar.jsx";
+import { CanalBlock, DemandaResumoBlock } from "./DemandaBlocks.jsx";
 
 /* Textarea com os comandos @responsável / # prazo / !subtema — usada nos
    blocos de texto dos templates estruturados. */
@@ -154,7 +155,7 @@ export function SmartTextarea({ value, onChange, users, sections, placeholder, m
 }
 
 /* ------------------------------------------------------------------ */
-const BlockComment = ({ b, onChange, users, sections }) => (
+export const BlockComment = ({ b, onChange, users, sections }) => (
   <div className="flex items-start gap-1.5 mt-2 pt-2 border-t" style={{ borderColor: "#EDEDE6" }}>
     <span className="text-xs mt-1" title="Comentários — aceita @responsável, # prazo, !subtema e * importante">💬</span>
     <div className="flex-1">
@@ -169,7 +170,7 @@ const BlockComment = ({ b, onChange, users, sections }) => (
   </div>
 );
 
-const BlockCard = ({ title, hint, extra, children }) => (
+export const BlockCard = ({ title, hint, extra, children }) => (
   <div className="rounded-xl border shadow-sm" style={{ borderColor: C.line, background: C.paper }}>
     <div className="flex items-center gap-2 px-4 pt-3 pb-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>
       <p className="text-xs font-bold uppercase tracking-wider flex-1" style={{ color: C.stamp }}>{title}</p>
@@ -634,6 +635,9 @@ export function BlocksEditor({ blocks, onChange, users, sections }) {
         if (b.type === "fup") return <FupBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
         if (b.type === "consolidado") return <ConsolidadoBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
         if (b.type === "transcricao") return <TranscricaoBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} />;
+        if (b.type === "canal") return <CanalBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections}
+          vals={(blocks.find((x) => x.type === "demandaResumo") || {}).vals} />;
+        if (b.type === "demandaResumo") return <DemandaResumoBlock key={b.id} b={b} blocks={blocks} />;
         return <TextBlock key={b.id} b={b} onChange={(nb) => patch(i, nb)} users={users} sections={sections} />;
       })}
     </div>

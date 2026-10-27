@@ -1,6 +1,7 @@
 import { dateKeyBR, todayBR } from "./util.js";
 import { bodyText, parseDraftTasks } from "./data.js";
 import { GRUPOS_SQL, consolidadoEff } from "./blocks.js";
+import { demandaToText, fmtR, resumoDemanda } from "./demanda.js";
 
 /* ------------------------------------------------------------------ */
 /* Gerador LOCAL de atas — custo zero, instantâneo, sem IA.            */
@@ -128,6 +129,15 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
         } else if (e("reunioes") || e("leadsIn") || e("leadsRem") || e("aprovados") || e("aprovadosExtra") || e("ressalvados") || e("reprovados")) {
           decisoes.push(`${t}${b.mes ? ` (${b.mes})` : ""}: ${e("reunioes")} reuniões realizadas, ${e("leadsIn")} leads inbound, ${e("leadsRem")} leads remarketing; SQL aprovados ${fmtN(e("aprovados"))}M, aprovados extraordinário ${fmtN(e("aprovadosExtra"))}M, ressalvados ${fmtN(e("ressalvados"))}M, reprovados ${fmtN(e("reprovados"))}M`);
         }
+      }
+      if (b.type === "canal") {
+        demandaToText(b, B).split(String.fromCharCode(10)).filter(Boolean).forEach((l, k) => decisoes.push(k ? `${t}: ${l.replace(/^- /, "")}` : stripEmoji(l)));
+        if (b.comment && b.comment.trim()) decisoes.push(`${t} — obs.: ${b.comment.trim()}`);
+      }
+      if (b.type === "demandaResumo") {
+        const r = resumoDemanda(B, b.vals);
+        decisoes.push(stripEmoji(demandaToText(b, B)));
+        stats.push(`reuniões Capital ${r.semana.realC}/${r.semana.metaC} e Advisor ${r.semana.realA}/${r.semana.metaA}; gasto ${fmtR(r.semana.gasto)} na semana e projeção de ${fmtR(r.mes.projecao)} no mês`);
       }
       if (b.type === "fup") {
         const tt = `${t}${b.date ? ` (${b.date})` : ""}`;
