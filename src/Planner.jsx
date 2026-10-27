@@ -1835,6 +1835,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
           ) : noteMeta.kind === "diario" || noteMeta.kind === "diario-concluidas" ? (
             <DiarioView key={noteMeta.kind} diario={meta.diario}
               mode={noteMeta.kind === "diario" ? "abertas" : "concluidas"}
+              areas={meta.notebooks.filter((nb) => !nb.daily).map((nb) => nb.name)}
               onChange={(diario) => setMeta((m) => ({ ...m, diario }))}
               onIrPara={(kind) => {
                 const alvo = section?.notes.find((n) => n.kind === kind);

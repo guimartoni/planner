@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { CalendarClock, Check, Plus, RotateCcw, Star, X } from "lucide-react";
+import { ArrowRight, CalendarClock, Check, Plus, RotateCcw, Star, Tag, X } from "lucide-react";
 import { C, dateKeyBR, plusDaysBR, todayBR, uid } from "../lib/util.js";
 import { useAutoGrow } from "../lib/autoGrow.js";
 import { DateBR } from "./Blocks.jsx";
@@ -9,15 +9,20 @@ import { DateBR } from "./Blocks.jsx";
    opcional e a marca de prioridade. Concluir tira a tarefa daqui e leva para a
    página "Concluídas" (mode="concluidas"), de onde ela pode ser reaberta.
 
-   Dados em meta.diario = { tarefas: [{ id, texto, criadaEm, fup, prioridade,
-   concluida, concluidaEm }] }. */
+   Cada tarefa pode ter um assunto: as áreas do app (abas) já vêm como opção e
+   o usuário cria outros na hora (guardados em meta.diario.categorias).
+
+   Dados em meta.diario = { categorias: [nome], tarefas: [{ id, texto, criadaEm,
+   fup, categoria, prioridade, concluida, concluidaEm }] }. */
 
 export const normalizaDiario = (d) => ({
+  categorias: (d && d.categorias) || [],
   tarefas: ((d && d.tarefas) || []).map((t) => ({
     id: t.id || uid(),
     texto: t.texto || "",
     criadaEm: t.criadaEm || todayBR(),
     fup: t.fup || "",
+    categoria: t.categoria || "",
     prioridade: !!t.prioridade,
     concluida: !!t.concluida,
     concluidaEm: t.concluidaEm || null,
@@ -103,11 +108,97 @@ function CampoFup({ valor, onChange, largura = 118 }) {
   );
 }
 
-export default function DiarioView({ diario, onChange, mode = "abertas", onIrPara }) {
+/* cor fixa por assunto (mesmo nome, mesma cor) */
+const CORES_ASSUNTO = [
+  ["#E7E7FB", "#4338CA"], ["#E4F1EB", "#1E6B4F"], ["#FBEEDB", "#B45309"], ["#FBE7EF", "#9D2960"],
+  ["#E1F0F5", "#0E6E8C"], ["#ECE8F6", "#5B4A9E"], ["#F5EEDC", "#8A5A00"], ["#E3ECF7", "#2E6BB0"],
+];
+const corAssunto = (nome) => {
+  let h = 0;
+  for (const ch of nome || "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const [background, color] = CORES_ASSUNTO[h % CORES_ASSUNTO.length];
+  return { background, color };
+};
+
+/* Assunto: etiqueta que abre um menu com as áreas do app + assuntos criados,
+   e um campo para criar um novo na hora. */
+function CampoAssunto({ valor, opcoes, onChange, onCriar, largura = 150 }) {
+  const [aberto, setAberto] = useState(false);
+  const [novo, setNovo] = useState("");
+  const criar = () => {
+    const n = novo.trim();
+    if (!n) return;
+    onCriar(n); // registra o assunto e já aplica (uma gravação só)
+    setNovo("");
+    setAberto(false);
+  };
+  return (
+    <span className="relative shrink-0 self-center" style={{ width: largura }}>
+      <button onClick={() => setAberto(!aberto)} title={valor ? `Assunto: ${valor} — clique para mudar` : "Definir o assunto"}
+        className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap overflow-hidden"
+        style={valor ? corAssunto(valor) : { color: "#9CA3AF", border: "1px dashed #D9DDE3" }}>
+        <Tag size={11} className="shrink-0" />
+        <span className="truncate">{valor || "Assunto"}</span>
+      </button>
+      {aberto && (
+        <>
+          <span className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
+          <div className="absolute right-0 top-full mt-1 z-50 rounded-xl border shadow-lg overflow-hidden"
+            style={{ background: "#fff", borderColor: C.line, width: 220 }}>
+            <div className="max-h-64 overflow-y-auto py-1">
+              {valor && (
+                <button onClick={() => { onChange(""); setAberto(false); }}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50" style={{ color: "#9CA3AF" }}>
+                  — sem assunto
+                </button>
+              )}
+              {opcoes.map((o) => (
+                <button key={o} onClick={() => { onChange(o); setAberto(false); }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50"
+                  style={{ color: "#374151", fontWeight: o === valor ? 700 : 400 }}>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: corAssunto(o).color }} />
+                  <span className="flex-1 truncate">{o}</span>
+                  {o === valor && <Check size={12} />}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 p-1.5 border-t" style={{ borderColor: C.line }}>
+              <input value={novo} onChange={(e) => setNovo(e.target.value)} autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") criar(); if (e.key === "Escape") setAberto(false); }}
+                placeholder="Novo assunto…" className="flex-1 min-w-0 border rounded-md px-2 py-1 text-xs outline-none"
+                style={{ borderColor: C.line }} />
+              <button onClick={criar} className="p-1 rounded-md text-white" style={{ background: C.stamp }} title="Criar assunto">
+                <Plus size={12} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
+export default function DiarioView({ diario, onChange, mode = "abertas", onIrPara, areas = [] }) {
   const dados = normalizaDiario(diario);
-  const [novo, setNovo] = useState({ texto: "", fup: "", prioridade: false });
+  const [novo, setNovo] = useState({ texto: "", fup: "", categoria: "", prioridade: false });
   const [filtro, setFiltro] = useState("todas"); // todas | prioridade | fup
+  const [filtroAssunto, setFiltroAssunto] = useState("");
   const [busca, setBusca] = useState("");
+
+  /* assuntos: áreas do app + os criados aqui + os que já estão em uso */
+  const assuntos = [...new Set([...areas, ...dados.categorias, ...dados.tarefas.map((t) => t.categoria).filter(Boolean)])];
+  /* cria o assunto (se ainda não existe) e aplica na tarefa `id` — sem id, é
+     a tarefa que está sendo lançada */
+  const criarAssunto = (id) => (n) => {
+    const existente = assuntos.find((a) => a.toLowerCase() === n.toLowerCase());
+    const nome = existente || n;
+    if (!id) setNovo((x) => ({ ...x, categoria: nome }));
+    onChange({
+      ...dados,
+      categorias: existente ? dados.categorias : [...dados.categorias, n],
+      tarefas: id ? dados.tarefas.map((t) => (t.id === id ? { ...t, categoria: nome } : t)) : dados.tarefas,
+    });
+  };
 
   const setTarefas = (tarefas) => onChange({ ...dados, tarefas });
   const patch = (id, campos) => setTarefas(dados.tarefas.map((t) => (t.id === id ? { ...t, ...campos } : t)));
@@ -116,8 +207,8 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
   const adicionar = () => {
     const texto = novo.texto.trim();
     if (!texto) return;
-    setTarefas([{ id: uid(), texto, criadaEm: todayBR(), fup: novo.fup, prioridade: novo.prioridade, concluida: false, concluidaEm: null }, ...dados.tarefas]);
-    setNovo({ texto: "", fup: "", prioridade: false });
+    setTarefas([{ id: uid(), texto, criadaEm: todayBR(), fup: novo.fup, categoria: novo.categoria, prioridade: novo.prioridade, concluida: false, concluidaEm: null }, ...dados.tarefas]);
+    setNovo({ texto: "", fup: "", categoria: novo.categoria, prioridade: false });
   };
 
   const abertas = dados.tarefas.filter((t) => !t.concluida);
@@ -137,7 +228,8 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
   const ordenar = (itens) => [...itens].sort((a, b) => (b.prioridade - a.prioridade));
 
   const termo = busca.trim().toLowerCase();
-  const casaBusca = (t) => !termo || t.texto.toLowerCase().includes(termo);
+  const casaBusca = (t) => (!termo || t.texto.toLowerCase().includes(termo) || t.categoria.toLowerCase().includes(termo))
+    && (!filtroAssunto || t.categoria === filtroAssunto);
 
   const cabecalhoDia = (dia, n) => (
     <div className="flex items-baseline gap-2 px-1 pt-3 pb-1.5 border-b mb-1" style={{ borderColor: "#EDEDE6" }}>
@@ -182,6 +274,9 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
                     <Check size={12} color="#fff" />
                   </span>
                   {t.prioridade && <Star size={13} fill="#F59E0B" color="#D97706" className="shrink-0" />}
+                  {t.categoria && (
+                    <span className="shrink-0 px-2 py-0.5 rounded-md text-xs font-medium" style={corAssunto(t.categoria)}>{t.categoria}</span>
+                  )}
                   <span className="flex-1 text-sm line-through whitespace-pre-wrap" style={{ color: "#6B7280", textDecorationColor: "#C3C8CF" }}>{t.texto}</span>
                   <span className="text-xs shrink-0 hidden sm:inline" style={{ color: "#9CA3AF" }}>
                     criada {t.criadaEm.slice(0, 5)}{t.fup ? ` · FUP ${t.fup.slice(0, 5)}` : ""}
@@ -228,7 +323,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
         )}
       </div>
       <p className="text-xs mb-3" style={{ color: "#9CA3AF" }}>
-        Lance as tarefas aqui — cada uma fica com o dia em que foi criada. ⭐ marca prioridade, FUP agenda o retorno e ✓ conclui (vai para Concluídas).
+        Lance as tarefas aqui — cada uma fica com o dia em que foi criada. ⭐ marca prioridade, FUP agenda o retorno, o assunto organiza e a seta → conclui (vai para Concluídas).
       </p>
 
       {/* lançamento rápido */}
@@ -238,6 +333,8 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
           placeholder="Nova tarefa… (Enter lança · Shift+Enter pula linha)"
           style={{ ...celaStyle, flex: 1, minWidth: 0 }} />
         <CampoFup valor={novo.fup} onChange={(v) => setNovo({ ...novo, fup: v })} />
+        <CampoAssunto valor={novo.categoria} opcoes={assuntos} onCriar={criarAssunto(null)}
+          onChange={(v) => setNovo({ ...novo, categoria: v })} />
         <button onClick={adicionar}
           className="shrink-0 self-center flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
           style={{ background: C.stamp, opacity: novo.texto.trim() ? 1 : 0.5 }}>
@@ -250,8 +347,14 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
         {chip("prioridade", `⭐ ${nPrioridade} prioridade${nPrioridade === 1 ? "" : "s"}`, { background: "#FEF3C7", color: "#B45309" })}
         {chip("fup", `FUP: ${nFupHoje} hoje${nFupVencido ? ` · ${nFupVencido} vencido${nFupVencido > 1 ? "s" : ""}` : ""}`,
           nFupVencido ? FUP_COR.vencido : FUP_COR.hoje)}
+        <select value={filtroAssunto} onChange={(e) => setFiltroAssunto(e.target.value)}
+          className="ml-auto border rounded-full px-2.5 py-1 text-xs outline-none"
+          style={{ ...celaStyle, ...(filtroAssunto ? corAssunto(filtroAssunto) : {}) }}>
+          <option value="">Todos os assuntos</option>
+          {assuntos.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…"
-          className="ml-auto border rounded-full px-3 py-1 text-xs outline-none" style={{ ...celaStyle, width: 160 }} />
+          className=" border rounded-full px-3 py-1 text-xs outline-none" style={{ ...celaStyle, width: 160 }} />
       </div>
 
       {visiveis.length === 0 ? (
@@ -270,10 +373,12 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
                     onEnter={(e) => document.activeElement && document.activeElement.blur()}
                     style={{ ...celaStyle, flex: 1, minWidth: 0, ...(t.prioridade ? { borderColor: "#F5D28A", background: "#FFFBEB" } : {}) }} />
                   <CampoFup valor={t.fup} onChange={(v) => patch(t.id, { fup: v })} />
+                  <CampoAssunto valor={t.categoria} opcoes={assuntos} onCriar={criarAssunto(t.id)}
+                    onChange={(v) => patch(t.id, { categoria: v })} />
                   <button onClick={() => patch(t.id, { concluida: true, concluidaEm: todayBR() })}
-                    className="shrink-0 self-center flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:bg-[#1E6B4F] hover:text-white"
+                    className="shrink-0 self-center w-8 h-8 flex items-center justify-center rounded-full border transition-colors hover:bg-[#1E6B4F] hover:text-white"
                     style={{ borderColor: C.stamp, color: C.stamp }} title="Concluir — vai para a página Concluídas">
-                    <Check size={13} /> <span className="hidden sm:inline">Concluído</span>
+                    <ArrowRight size={15} />
                   </button>
                   <button onClick={() => excluir(t.id)} className="shrink-0 self-center p-1 opacity-30 group-hover:opacity-100"
                     style={{ color: C.danger }} title="Excluir (Ctrl+Z desfaz)">
