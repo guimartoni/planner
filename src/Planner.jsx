@@ -1680,21 +1680,6 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
         </div>
       )}
 
-      {pendingAuto && (() => {
-        const meUser = meta.users.find((x) => x.id === me?.id) || { id: me?.id, name: me?.name || "Gestor" };
-        const txt = reportForUser(meUser, meta.tasks || [], true).slice(0, 1800);
-        return (
-          <a
-            href={"https://wa.me/?text=" + encodeURIComponent(txt)}
-            target="_blank" rel="noreferrer"
-            onClick={() => { setPendingAuto(false); setMeta((m) => ({ ...m, autoSend: isoToday() })); }}
-            className="w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-2 shrink-0 no-underline"
-            style={{ background: "#FBEEDB", color: "#854F0B" }}>
-            <Send size={14} /> Relatório diário pronto — toque para abrir o WhatsApp e enviar ao grupo da equipe
-          </a>
-        );
-      })()}
-
       <div className="flex flex-1 min-h-0 relative">
         {/* Sidebar */}
         <aside className={`${showSide ? "flex" : "hidden"} md:flex flex-col w-64 shrink-0 border-r absolute md:static z-20 h-full`}
