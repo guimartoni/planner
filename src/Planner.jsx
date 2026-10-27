@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen, CalendarDays, CheckSquare, ChevronRight, ClipboardList, ExternalLink, FileText,
+  BookOpen, CalendarDays, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, FileText,
   FolderInput, Loader2, Menu, Pencil, Plus, RefreshCw, Redo2, Search as SearchIcon,
   Send, Trash2, Undo2, X,
 } from "lucide-react";
@@ -21,6 +21,7 @@ import Editor from "./components/Editor.jsx";
 import IdentifyScreen from "./components/IdentifyScreen.jsx";
 import MeetingsView from "./components/MeetingsView.jsx";
 import MiaView from "./components/MiaView.jsx";
+import DiarioView from "./components/DiarioView.jsx";
 import ReportView from "./components/ReportView.jsx";
 import SearchView from "./components/SearchView.jsx";
 import TasksView from "./components/TasksView.jsx";
@@ -32,7 +33,7 @@ const ME_KEY = "planner-me-v1";
 
 /* Normaliza os dados na carga: semente inicial, caderno Diário como
    primeira aba, subtema do mês e página de hoje. */
-function prepareData(data) {
+export function prepareData(data) {
   let changed = false;
   let m = data.meta;
   let bodies = { ...(data.bodies || {}) };
@@ -208,33 +209,43 @@ function prepareData(data) {
     changed = true;
   }
 
-  const mLabel = monthLabel();
-  let msec = daily.sections.find((s) => s.name === mLabel);
-  if (!msec) {
-    msec = { id: uid(), name: mLabel, notes: [] };
-    m = {
-      ...m,
-      notebooks: m.notebooks.map((nb) => nb.id !== daily.id ? nb : {
-        ...nb,
-        sections: [msec, ...nb.sections.filter((s) => !(s.name === "Anotações diárias" && s.notes.length === 0))],
-      }),
-    };
+  /* Diário em tela única (27/10/2026): acabou a página por dia. As tarefas
+     moram em meta.diario e aparecem em duas páginas especiais no subtema
+     "Tarefas" — em aberto (kind "diario") e concluídas (kind "diario-concluidas").
+     As páginas diárias antigas ficam como arquivo nos subtemas dos meses; as
+     linhas do último diário preenchido entram como tarefas, com a data dele. */
+  if (!m.diario) {
+    let ultimo = null;
+    daily.sections.forEach((s) => s.notes.forEach((n) => {
+      if (n.kind || !/^\d{2}\/\d{2}\/\d{4}$/.test(n.title || "")) return;
+      if (!((bodies[n.id] || {}).content || "").trim()) return;
+      if (!ultimo || dateKeyBR(n.title) > dateKeyBR(ultimo.title)) ultimo = n;
+    }));
+    const tarefas = ultimo
+      ? bodies[ultimo.id].content.split("\n")
+        .map((l) => l.trim().replace(/^[-*•]\s*/, "").replace(/\*\*/g, "").trim())
+        .filter(Boolean)
+        .map((texto) => ({ id: uid(), texto, criadaEm: ultimo.title, fup: "", prioridade: false, concluida: false, concluidaEm: null }))
+      : [];
+    m = { ...m, diario: { tarefas } };
     changed = true;
   }
-  let today = msec.notes.find((n) => n.title === todayBR());
-  if (!today) {
-    today = { id: uid(), title: todayBR(), createdAt: todayBR(), concluded: false, author: "" };
-    m = {
-      ...m,
-      notebooks: m.notebooks.map((nb) => nb.id !== daily.id ? nb : {
-        ...nb,
-        sections: nb.sections.map((s) => (s.id !== msec.id ? s : { ...s, notes: [today, ...s.notes] })),
-      }),
-    };
-    bodies[today.id] = { content: "", transcript: "", structured: null };
+  const temKind = (k) => daily.sections.some((s) => s.notes.some((n) => n.kind === k));
+  if (!temKind("diario") || !temKind("diario-concluidas")) {
+    const novas = [];
+    if (!temKind("diario")) novas.push({ id: uid(), title: "📋 Tarefas", createdAt: todayBR(), concluded: false, kind: "diario" });
+    if (!temKind("diario-concluidas")) novas.push({ id: uid(), title: "✅ Concluídas", createdAt: todayBR(), concluded: false, kind: "diario-concluidas" });
+    const tsec = daily.sections.find((s) => s.name === "Tarefas");
+    const sections = tsec
+      ? daily.sections.map((s) => (s.id !== tsec.id ? s : { ...s, notes: [...novas, ...s.notes] }))
+      : [{ id: uid(), name: "Tarefas", notes: novas }, ...daily.sections.filter((s) => !(s.name === "Anotações diárias" && s.notes.length === 0))];
+    daily = { ...daily, sections };
+    m = { ...m, notebooks: m.notebooks.map((nb) => (nb.id !== daily.id ? nb : daily)) };
     changed = true;
   }
-  return { data: { ...data, meta: m, bodies }, changed, ids: { nbId: daily.id, secId: msec.id, noteId: today.id } };
+  let pagDiario = null, secDiario = null;
+  daily.sections.forEach((s) => s.notes.forEach((n) => { if (n.kind === "diario" && !pagDiario) { pagDiario = n; secDiario = s; } }));
+  return { data: { ...data, meta: m, bodies }, changed, ids: { nbId: daily.id, secId: secDiario.id, noteId: pagDiario.id } };
 }
 
 export default function Planner() {
@@ -1617,14 +1628,14 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
       </header>
 
       {tabsInfo.length > 0 && (
-        <div className="flex items-center gap-1 px-2 pt-1.5 overflow-x-auto shrink-0 border-b"
-          style={{ background: "#DDE1E6", borderColor: C.line }}>
+        <div className="shrink-0 border-b px-2 pt-1.5" style={{ background: "#DDE1E6", borderColor: C.line }}>
+        <ScrollStrip fundo="#DDE1E6" corSeta="#4B5563" ativo={noteId + (notebook?.id || "")} className="gap-1 items-end">
           {tabsInfo.map((tb) => {
             const active = view === "editor" && (tb.t === "note"
               ? tb.id === noteId
               : notebook?.id === tb.id && !tabsInfo.some((x) => x.t === "note" && x.id === noteId));
             return (
-              <div key={tb.t + tb.id}
+              <div key={tb.t + tb.id} data-ativo={active ? "1" : undefined}
                 onClick={() => { (tb.t === "note" ? goToNote(tb.id) : pickNotebook(tb.id)); setShowSide(false); }}
                 className="flex items-center gap-1 pl-3 pr-1.5 py-1.5 rounded-t-lg text-xs cursor-pointer whitespace-nowrap shrink-0"
                 style={active
@@ -1639,6 +1650,7 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
               </div>
             );
           })}
+        </ScrollStrip>
         </div>
       )}
 
@@ -1820,6 +1832,14 @@ Responda SOMENTE com JSON válido, sem markdown, neste formato exato: {"texto":"
             </div>
           ) : noteMeta.kind === "mia" ? (
             <MiaView mia={meta.mia} onChange={(mia) => setMeta((m) => ({ ...m, mia }))} />
+          ) : noteMeta.kind === "diario" || noteMeta.kind === "diario-concluidas" ? (
+            <DiarioView key={noteMeta.kind} diario={meta.diario}
+              mode={noteMeta.kind === "diario" ? "abertas" : "concluidas"}
+              onChange={(diario) => setMeta((m) => ({ ...m, diario }))}
+              onIrPara={(kind) => {
+                const alvo = section?.notes.find((n) => n.kind === kind);
+                if (alvo) setNoteId(alvo.id);
+              }} />
           ) : !body || bodyFor !== noteId ? (
             <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin" color={C.ink} /></div>
           ) : noteMeta.concluded && body.structured ? (
@@ -2012,7 +2032,7 @@ function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder
   };
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto min-w-0">
+    <ScrollStrip fundo={C.ink} corSeta="#C9D0DB" ativo={nbId} className="gap-1 py-0.5">
       {meta.notebooks.map((nb) =>
         editId === nb.id ? (
           <input key={nb.id} autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)}
@@ -2031,12 +2051,16 @@ function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder
             onDragEnd={() => setDragId(null)}
             onContextMenu={(e) => { e.preventDefault(); onOpenTab(nb.id); }}
             title={nb.daily ? "Botão direito abre em aba" : "Segure e arraste para reordenar · botão direito abre em aba"}
-            className="px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex items-center gap-1.5"
+            data-ativo={nb.id === nbId ? "1" : undefined}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-[13px] whitespace-nowrap flex items-center gap-1.5 transition-colors ${nb.id === nbId ? "" : "hover:bg-white/10 hover:text-white"}`}
             style={{
-              ...(nb.id === nbId ? { background: "#F5F6F8", color: C.ink, fontWeight: 600 } : { color: "#B8BFCC" }),
+              ...(nb.id === nbId
+                ? { background: "#F5F6F8", color: C.ink, fontWeight: 600, boxShadow: "0 1px 2px rgba(0,0,0,.25)" }
+                : { color: "#AEB6C4", fontWeight: 500 }),
+              ...(nb.daily ? { marginRight: 6 } : {}),
               opacity: dragId === nb.id ? 0.4 : 1,
             }}>
-            {nb.name}
+            {nb.daily && "📋 "}{nb.name}
             {nb.id === nbId && (
               <span onClick={(e) => { e.stopPropagation(); setEditId(nb.id); setEditVal(nb.name); }}
                 className="opacity-50 hover:opacity-100" title="Renomear área">
@@ -2062,8 +2086,76 @@ function NotebookTabs({ meta, nbId, onPick, onAdd, onRename, onDelete, onReorder
           placeholder="Nova área…"
           className="px-2 py-1 rounded text-sm w-28 outline-none shrink-0" style={{ background: C.inkSoft, color: "#fff" }} />
       ) : (
-        <button onClick={() => setAdding(true)} className="p-1.5 rounded-lg shrink-0" style={{ color: "#B8BFCC" }}><Plus size={16} /></button>
+        <button onClick={() => setAdding(true)} className="p-1.5 rounded-full shrink-0 hover:bg-white/10" style={{ color: "#B8BFCC" }} title="Nova área"><Plus size={16} /></button>
       )}
+    </ScrollStrip>
+  );
+}
+
+/* Faixa que rola para o lado sem barra de rolagem: setas e esmaecimento só
+   aparecem quando há mais conteúdo daquele lado, a rodinha do mouse rola na
+   horizontal e o item ativo (data-ativo) é trazido para a vista. */
+function ScrollStrip({ children, fundo, corSeta, ativo, className = "" }) {
+  const ref = useRef(null);
+  const [lados, setLados] = useState({ esq: false, dir: false });
+
+  const medir = () => {
+    const el = ref.current;
+    if (!el) return;
+    const esq = el.scrollLeft > 2;
+    const dir = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setLados((l) => (l.esq === esq && l.dir === dir ? l : { esq, dir }));
+  };
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const roda = (e) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", roda, { passive: false });
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    medir();
+    return () => { el.removeEventListener("wheel", roda); ro.disconnect(); };
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    const alvo = el && el.querySelector('[data-ativo="1"]');
+    if (alvo) {
+      const a = alvo.offsetLeft - el.offsetLeft, folga = 40;
+      if (a < el.scrollLeft + folga) el.scrollTo({ left: Math.max(0, a - folga) });
+      else if (a + alvo.offsetWidth > el.scrollLeft + el.clientWidth - folga) el.scrollTo({ left: a + alvo.offsetWidth - el.clientWidth + folga });
+    }
+  }, [ativo]); // eslint-disable-line
+  useEffect(medir); // conteúdo mudou (área nova, aba fechada…): reavalia as setas
+
+  const passo = (dir) => { const el = ref.current; if (el) el.scrollBy({ left: dir * el.clientWidth * 0.7 }); };
+  const seta = (lado) => (
+    <div className="absolute top-0 bottom-0 flex items-center pointer-events-none z-10"
+      style={{
+        [lado === "esq" ? "left" : "right"]: 0, width: 56,
+        justifyContent: lado === "esq" ? "flex-start" : "flex-end",
+        background: `linear-gradient(to ${lado === "esq" ? "right" : "left"}, ${fundo} 45%, transparent)`,
+      }}>
+      <button onClick={() => passo(lado === "esq" ? -1 : 1)}
+        className="pointer-events-auto p-1 rounded-full hover:bg-white/15" style={{ color: corSeta }}
+        title={lado === "esq" ? "Rolar para a esquerda" : "Rolar para a direita"}>
+        {lado === "esq" ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="relative min-w-0">
+      {lados.esq && seta("esq")}
+      <div ref={ref} onScroll={medir} className={`faixa-rolagem flex items-center overflow-x-auto min-w-0 ${className}`}>
+        {children}
+      </div>
+      {lados.dir && seta("dir")}
     </div>
   );
 }
