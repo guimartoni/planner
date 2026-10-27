@@ -266,7 +266,7 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
       );
     };
     return (
-      <Card key={b.id} title={b.title}>
+      <Card key={b.id} title={b.title} sub={(() => { const c = resumoDemanda([b], vals).canais[0]; return c.custo || c.projecao ? `custo previsto ${fmtR(c.custo)}/semana · ${fmtR(c.projecao)} no mês` : null; })()}>
         {!b.naoAplica && (
           <div className="flex gap-3 mb-2">{metaTxt("Capital", b.real.capital, b.meta.capital)}{metaTxt("Advisor", b.real.advisor, b.meta.advisor)}</div>
         )}
@@ -278,11 +278,9 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-semibold" style={{ color: D.text }}>{a.nome || "—"}</span>
                 {cor && <Badge bg={cor[0]} color={cor[1]}>{a.produto}</Badge>}
-                {(reais(a.custo) > 0 || reais(a.gasto) > 0) && (
+                {reais(a.custo) > 0 && (
                   <span className="ml-auto text-xs" style={{ color: D.mut }}>
-                    {reais(a.custo) > 0 && <>prev. {fmtR(reais(a.custo))}{a.periodo === "mes" ? " no mês" : "/sem"}</>}
-                    {reais(a.gasto) > 0 && <> · gasto <b style={{ color: D.amber }}>{fmtR(reais(a.gasto))}</b></>}
-                    {pr.projecao > 0 && <> · proj. mês {fmtR(pr.projecao)}</>}
+                    prev. {fmtR(reais(a.custo))}{a.periodo === "mes" ? " no mês" : `/sem · ${fmtR(pr)} no mês`}
                   </span>
                 )}
               </div>
@@ -313,16 +311,13 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
           {caixa("Capital no mês", `${r.mes.realC} / ${r.mes.metaC}`, D.blue, pc(r.mes.realC, r.mes.metaC))}
           {caixa("Advisor no mês", `${r.mes.realA} / ${r.mes.metaA}`, "#A78BFA", pc(r.mes.realA, r.mes.metaA))}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-          {caixa("Custo previsto semana", fmtR(r.semana.custo))}
-          {caixa("Gasto na semana", fmtR(r.semana.gasto), D.amber)}
-          {caixa("Gasto no mês", fmtR(r.mes.acum), D.amber)}
-          {caixa("Orçamento do mês", fmtR(r.mes.orcamento))}
-          {caixa("Projeção de fechamento", fmtR(r.mes.projecao), r.mes.projecao > r.mes.orcamento ? D.red : D.green)}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {caixa("Custo previsto da semana", fmtR(r.semana.custo))}
+          {caixa("Projeção de custo do mês", fmtR(r.mes.projecao), D.green)}
         </div>
         <table className="w-full text-xs">
           <thead><tr style={{ color: D.mut }}>
-            {["Canal", "Capital", "Advisor", "Custo/sem", "Gasto sem", "Gasto mês", "Projeção"].map((h) => <th key={h} className="text-left font-medium px-1.5 py-1" style={{ borderBottom: `0.5px solid ${D.line}` }}>{h}</th>)}
+            {["Canal", "Capital", "Advisor", "Custo/semana", "Projeção mês"].map((h) => <th key={h} className="text-left font-medium px-1.5 py-1" style={{ borderBottom: `0.5px solid ${D.line}` }}>{h}</th>)}
           </tr></thead>
           <tbody>
             {r.canais.map((c) => (
@@ -331,8 +326,6 @@ export default function FupPanel({ blocks, prevBlocks, header, showEmpty }) {
                 <td className="px-1.5 py-1">{c.naoAplica ? "—" : `${c.realC}/${c.metaC}`}</td>
                 <td className="px-1.5 py-1">{c.naoAplica ? "—" : `${c.realA}/${c.metaA}`}</td>
                 <td className="px-1.5 py-1">{fmtR(c.custo)}</td>
-                <td className="px-1.5 py-1" style={{ color: D.amber }}>{fmtR(c.gasto)}</td>
-                <td className="px-1.5 py-1">{fmtR(c.acum)}</td>
                 <td className="px-1.5 py-1 font-semibold" style={{ color: D.text }}>{fmtR(c.projecao)}</td>
               </tr>
             ))}

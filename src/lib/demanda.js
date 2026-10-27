@@ -6,12 +6,12 @@ import { TRANSCRICAO_BLOCK } from "./blocks.js";
    Cada canal (Digital, Remarketing, Outbound, Franquias, Parcerias, Farming,
    Eventos) é um bloco "canal" com a meta semanal de reuniões em Capital e em
    Advisor, o realizado da semana e as ações do plano — cada ação com o produto,
-   a diretriz combinada, o custo previsto (por semana ou uma vez no mês) e o
-   gasto real da semana.
+   a diretriz combinada e o custo previsto (por semana ou uma vez no mês).
+   Só previsão de custo — gasto real não é controlado aqui (27/10/2026).
 
    No topo, o bloco "demandaResumo" junta tudo: reuniões da semana e do mês
-   contra a meta, custo da semana, gasto acumulado no mês, orçamento e a
-   projeção de fechamento do mês. Os acumulados do mês vêm somados dos FUPs do
+   contra a meta, custo previsto da semana e a projeção de custo do mês
+   (custo semanal × semanas do mês + custos únicos). As reuniões do mês vêm somadas dos FUPs do
    mesmo mês (o Planner preenche b.vals, como no consolidado dos outros FUPs). */
 
 export const PRODUTOS = ["Capital", "Advisor", "Capital + Advisor"];
@@ -31,7 +31,7 @@ export const qtd = (s) => { const m = String(s || "").replace(",", ".").match(/[
 export const fmtR = (n) => "R$ " + Math.round(n || 0).toLocaleString("pt-BR");
 
 const acao = (nome, produto, diretriz, custo = "", periodo = "semana") =>
-  ({ id: uid(), nome, produto, diretriz, custo, periodo, gasto: "" });
+  ({ id: uid(), nome, produto, diretriz, custo, periodo });
 const canal = (title, capital, advisor, acoes, naoAplica = false) => ({
   id: uid(), type: "canal", title,
   meta: { capital: String(capital), advisor: String(advisor) },
@@ -88,9 +88,9 @@ export const DEMANDA_BLOCKS = () => ([
 ]);
 
 /* Nova semana (clonar a anterior): metas, ações, diretrizes e custos ficam;
-   realizado, gastos e comentários começam em branco. */
+   realizado e comentários começam em branco. */
 export const limparSemanaDemanda = (b) => {
-  if (b.type === "canal") return { ...b, real: { capital: "", advisor: "" }, comment: "", acoes: (b.acoes || []).map((a) => ({ ...a, gasto: "" })) };
+  if (b.type === "canal") return { ...b, real: { capital: "", advisor: "" }, comment: "" };
   if (b.type === "demandaResumo") return { ...b, mes: "", vals: null };
   return b;
 };
@@ -113,26 +113,22 @@ export function semanasDoMes(dataBR) {
 /* Acumulados do mês: soma os FUPs do mesmo mês (lista de arrays de blocos).
    Ações e canais são casados pelo id (a semana nova é um clone da anterior). */
 export function calcularMesDemanda(paginas, dataBR) {
-  const gastoAcao = {}, realCanal = {};
+  const realCanal = {};
   paginas.forEach((blocks) => (blocks || []).forEach((b) => {
     if (b.type !== "canal") return;
     const rc = (realCanal[b.id] = realCanal[b.id] || { capital: 0, advisor: 0 });
     rc.capital += qtd(b.real && b.real.capital);
     rc.advisor += qtd(b.real && b.real.advisor);
-    (b.acoes || []).forEach((a) => { gastoAcao[a.id] = (gastoAcao[a.id] || 0) + reais(a.gasto); });
   }));
   const s = semanasDoMes(dataBR);
-  return { semanasMes: s.total, semanasRestantes: s.restantes, gastoAcao, realCanal };
+  return { semanasMes: s.total, semanasRestantes: s.restantes, realCanal };
 }
 
-/* Projeção de uma ação no mês: o que já foi gasto + o previsto para as semanas
-   que faltam (custo semanal) ou o que falta do custo único do mês. */
+/* Projeção de custo de uma ação no mês: custo semanal × semanas do mês, ou o
+   custo único quando é "no mês". */
 export function projecaoAcao(a, vals) {
-  const v = vals || {};
-  const acum = (v.gastoAcao || {})[a.id] || 0;
   const custo = reais(a.custo);
-  if (a.periodo === "mes") return { orcamento: custo, acum, projecao: Math.max(acum, custo) };
-  return { orcamento: custo * (v.semanasMes || 4), acum, projecao: acum + custo * (v.semanasRestantes || 0) };
+  return a.periodo === "mes" ? custo : custo * ((vals && vals.semanasMes) || 4);
 }
 
 /* Números consolidados da página (semana) + do mês */
@@ -141,8 +137,8 @@ export function resumoDemanda(blocks, vals) {
   vals = vals || calcularMesDemanda([blocks], null); // antes do Planner somar o mês: só esta semana
   const sem = vals.semanasMes;
   const r = {
-    semana: { metaC: 0, metaA: 0, realC: 0, realA: 0, custo: 0, gasto: 0 },
-    mes: { metaC: 0, metaA: 0, realC: 0, realA: 0, orcamento: 0, acum: 0, projecao: 0 },
+    semana: { metaC: 0, metaA: 0, realC: 0, realA: 0, custo: 0 },
+    mes: { metaC: 0, metaA: 0, realC: 0, realA: 0, projecao: 0 },
     canais: [],
   };
   canais.forEach((c) => {
@@ -152,21 +148,19 @@ export function resumoDemanda(blocks, vals) {
       metaC: c.naoAplica ? 0 : qtd(c.meta.capital), metaA: c.naoAplica ? 0 : qtd(c.meta.advisor),
       realC: qtd(c.real.capital), realA: qtd(c.real.advisor),
       mesRealC: rc.capital, mesRealA: rc.advisor,
-      custo: 0, gasto: 0, orcamento: 0, acum: 0, projecao: 0,
+      custo: 0, projecao: 0,
     };
     (c.acoes || []).forEach((a) => {
       if (a.periodo !== "mes") linha.custo += reais(a.custo);
-      linha.gasto += reais(a.gasto);
-      const p = projecaoAcao(a, vals);
-      linha.orcamento += p.orcamento; linha.acum += p.acum; linha.projecao += p.projecao;
+      linha.projecao += projecaoAcao(a, vals);
     });
     r.canais.push(linha);
     r.semana.metaC += linha.metaC; r.semana.metaA += linha.metaA;
     r.semana.realC += linha.realC; r.semana.realA += linha.realA;
-    r.semana.custo += linha.custo; r.semana.gasto += linha.gasto;
+    r.semana.custo += linha.custo;
     r.mes.metaC += linha.metaC * sem; r.mes.metaA += linha.metaA * sem;
     r.mes.realC += c.naoAplica ? 0 : linha.mesRealC; r.mes.realA += c.naoAplica ? 0 : linha.mesRealA;
-    r.mes.orcamento += linha.orcamento; r.mes.acum += linha.acum; r.mes.projecao += linha.projecao;
+    r.mes.projecao += linha.projecao;
   });
   return r;
 }
@@ -177,12 +171,13 @@ export const pct = (real, meta) => (meta > 0 ? Math.round((real / meta) * 100) :
 export function demandaToText(b, blocks) {
   if (b.type === "canal") {
     const meta = b.naoAplica ? "sem meta de reuniões" : `reuniões Capital ${b.real.capital || 0}/${b.meta.capital || 0}, Advisor ${b.real.advisor || 0}/${b.meta.advisor || 0}`;
-    const acoes = (b.acoes || []).map((a) => `- ${a.nome}${a.produto ? ` [${a.produto}]` : ""}: ${a.diretriz || ""}${reais(a.custo) ? ` (custo ${fmtR(reais(a.custo))}${a.periodo === "mes" ? " no mês" : "/semana"}${reais(a.gasto) ? `, gasto ${fmtR(reais(a.gasto))}` : ""})` : reais(a.gasto) ? ` (gasto ${fmtR(reais(a.gasto))})` : ""}`);
-    return `${b.title} — ${meta}\n${acoes.join("\n")}`;
+    const acoes = (b.acoes || []).map((a) => `- ${a.nome}${a.produto ? ` [${a.produto}]` : ""}: ${a.diretriz || ""}${reais(a.custo) ? ` (custo previsto ${fmtR(reais(a.custo))}${a.periodo === "mes" ? " no mês" : "/semana"})` : ""}`);
+    const c = resumoDemanda([b], null).canais[0];
+    return `${b.title}${c.custo || c.projecao ? ` (custo previsto ${fmtR(c.custo)}/semana · ${fmtR(c.projecao)} no mês)` : ""} — ${meta}\n${acoes.join("\n")}`;
   }
   if (b.type === "demandaResumo") {
     const r = resumoDemanda(blocks, b.vals);
-    return `${b.title}${b.mes ? ` (${b.mes})` : ""}: semana — Capital ${r.semana.realC}/${r.semana.metaC}, Advisor ${r.semana.realA}/${r.semana.metaA}; mês — Capital ${r.mes.realC}/${r.mes.metaC}, Advisor ${r.mes.realA}/${r.mes.metaA}; custo previsto da semana ${fmtR(r.semana.custo)}, gasto na semana ${fmtR(r.semana.gasto)}, gasto no mês ${fmtR(r.mes.acum)}, orçamento do mês ${fmtR(r.mes.orcamento)}, projeção de fechamento ${fmtR(r.mes.projecao)}`;
+    return `${b.title}${b.mes ? ` (${b.mes})` : ""}: semana — Capital ${r.semana.realC}/${r.semana.metaC}, Advisor ${r.semana.realA}/${r.semana.metaA}; mês — Capital ${r.mes.realC}/${r.mes.metaC}, Advisor ${r.mes.realA}/${r.mes.metaA}; custo previsto da semana ${fmtR(r.semana.custo)}, projeção de custo do mês ${fmtR(r.mes.projecao)}`;
   }
   return "";
 }

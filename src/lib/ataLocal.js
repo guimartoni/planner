@@ -137,7 +137,7 @@ export function gerarAtaLocal({ noteMeta, body, users, prevBlocks, tplName }) {
       if (b.type === "demandaResumo") {
         const r = resumoDemanda(B, b.vals);
         decisoes.push(stripEmoji(demandaToText(b, B)));
-        stats.push(`reuniões Capital ${r.semana.realC}/${r.semana.metaC} e Advisor ${r.semana.realA}/${r.semana.metaA}; gasto ${fmtR(r.semana.gasto)} na semana e projeção de ${fmtR(r.mes.projecao)} no mês`);
+        stats.push(`reuniões Capital ${r.semana.realC}/${r.semana.metaC} e Advisor ${r.semana.realA}/${r.semana.metaA}; custo previsto de ${fmtR(r.semana.custo)} na semana e ${fmtR(r.mes.projecao)} no mês`);
       }
       if (b.type === "fup") {
         const tt = `${t}${b.date ? ` (${b.date})` : ""}`;

@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Plus, X } from "lucide-react";
 import { C, uid } from "../lib/util.js";
 import { useAutoGrow } from "../lib/autoGrow.js";
-import { PRODUTOS, fmtR, pct, projecaoAcao, reais, resumoDemanda } from "../lib/demanda.js";
+import { PRODUTOS, fmtR, pct, projecaoAcao, resumoDemanda } from "../lib/demanda.js";
 import { BlockCard, BlockComment, GrowCell } from "./Blocks.jsx";
 
 /* Blocos do FUP de Geração de Demanda: canal (metas, realizado e ações com
@@ -63,7 +63,13 @@ export function CanalBlock({ b, onChange, users, sections, vals }) {
   const setAcao = (id, campos) => onChange({ ...b, acoes: acoes.map((a) => (a.id === id ? { ...a, ...campos } : a)) });
   const linha = resumoDemanda([b], vals).canais[0];
   return (
-    <BlockCard title={b.title}
+    <BlockCard
+      title={<span className="flex items-center gap-2 flex-wrap">{b.title}
+        <span className="normal-case tracking-normal text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: C.stampSoft, color: C.stamp }}
+          title="Soma do custo previsto das ações deste canal">
+          {fmtR(linha.custo)}/semana · {fmtR(linha.projecao)} no mês
+        </span>
+      </span>}
       extra={
         <label className="flex items-center gap-1 text-xs cursor-pointer" style={{ color: "#6B7280" }}>
           <input type="checkbox" checked={!!b.naoAplica} onChange={(e) => onChange({ ...b, naoAplica: e.target.checked })} />
@@ -82,7 +88,7 @@ export function CanalBlock({ b, onChange, users, sections, vals }) {
       )}
 
       {acoes.map((a) => {
-        const p = projecaoAcao(a, vals);
+        const proj = projecaoAcao(a, vals);
         return (
           <div key={a.id} className="rounded-lg border p-2 mb-2" style={{ borderColor: "#E3E5DE", background: "#FCFCFA" }}>
             <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
@@ -105,15 +111,9 @@ export function CanalBlock({ b, onChange, users, sections, vals }) {
                   <option value="mes">no mês</option>
                 </select>
               </span>
-              <span className="flex items-center gap-1 shrink-0">
-                <span className="text-xs" style={{ color: "#9CA3AF" }}>Gasto</span>
-                <input value={a.gasto || ""} onChange={(e) => setAcao(a.id, { gasto: e.target.value })} placeholder="R$ 0"
-                  inputMode="decimal" className={cel} style={{ ...celStyle, width: 82, color: C.date, fontWeight: 600 }}
-                  title="Quanto foi gasto de fato nesta semana" />
-              </span>
               <span className="shrink-0 text-xs px-2 py-1.5 rounded-lg whitespace-nowrap" style={{ background: "#EEF0F2", color: "#4B5563" }}
-                title={`Orçamento do mês ${fmtR(p.orcamento)} · gasto até aqui ${fmtR(p.acum)} · projeção = gasto até aqui + semanas que faltam`}>
-                Proj. mês <b>{p.projecao ? fmtR(p.projecao) : "—"}</b>
+                title="Custo semanal × semanas do mês (ou o custo único, quando é no mês)">
+                No mês <b>{proj ? fmtR(proj) : "—"}</b>
               </span>
               <button onClick={() => onChange({ ...b, acoes: acoes.filter((x) => x.id !== a.id) })}
                 className="shrink-0 p-1 ml-auto" style={{ color: C.danger }} title="Excluir ação">
@@ -125,13 +125,10 @@ export function CanalBlock({ b, onChange, users, sections, vals }) {
         );
       })}
       <div className="flex items-center gap-2 mt-2">
-        <button onClick={() => onChange({ ...b, acoes: [...acoes, { id: uid(), nome: "", produto: "", diretriz: "", custo: "", periodo: "semana", gasto: "" }] })}
+        <button onClick={() => onChange({ ...b, acoes: [...acoes, { id: uid(), nome: "", produto: "", diretriz: "", custo: "", periodo: "semana" }] })}
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: "#E2E5E9", color: "#374151" }}>
           <Plus size={12} /> Ação
         </button>
-        <span className="ml-auto text-xs" style={{ color: "#6B7280" }}>
-          Custo semanal <b>{fmtR(linha.custo)}</b> · gasto na semana <b style={{ color: C.date }}>{fmtR(linha.gasto)}</b> · projeção do mês <b>{fmtR(linha.projecao)}</b>
-        </span>
       </div>
       <BlockComment b={b} onChange={onChange} users={users} sections={sections} />
     </BlockCard>
@@ -152,7 +149,7 @@ export function DemandaResumoBlock({ b, blocks }) {
   const pc = (x, m) => { const p = pct(x, m); return p === null ? "" : ` · ${p}%`; };
   return (
     <BlockCard title={`${b.title}${b.mes ? ` — ${b.mes}` : ""}`}
-      hint={`Calculado sozinho a partir dos canais abaixo. Mês = soma dos FUPs do mês (${v.semanasMes || "?"} semanas; ${v.semanasRestantes ?? "?"} depois desta).`}>
+      hint={`Calculado sozinho a partir dos canais abaixo. Reuniões do mês = soma dos FUPs do mês (${v.semanasMes || "?"} semanas).`}>
       <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Reuniões</p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
         <Num rotulo="Capital na semana" valor={`${r.semana.realC} / ${r.semana.metaC}`} sub={`realizadas / meta${pc(r.semana.realC, r.semana.metaC)}`} cor="#2E6BB0" />
@@ -161,19 +158,15 @@ export function DemandaResumoBlock({ b, blocks }) {
         <Num rotulo="Advisor no mês" valor={`${r.mes.realA} / ${r.mes.metaA}`} sub={`acumulado / meta do mês${pc(r.mes.realA, r.mes.metaA)}`} cor="#5B4A9E" />
       </div>
       <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#6B7280" }}>Custos</p>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
-        <Num rotulo="Custo previsto da semana" valor={fmtR(r.semana.custo)} sub="soma das ações /semana" />
-        <Num rotulo="Gasto na semana" valor={fmtR(r.semana.gasto)} cor={C.date} />
-        <Num rotulo="Gasto no mês até agora" valor={fmtR(r.mes.acum)} cor={C.date} />
-        <Num rotulo="Orçamento do mês" valor={fmtR(r.mes.orcamento)} sub="custo semanal × semanas + custos do mês" />
-        <Num rotulo="Projeção de fechamento" valor={fmtR(r.mes.projecao)} sub="gasto até agora + semanas que faltam"
-          cor={r.mes.projecao > r.mes.orcamento ? C.danger : C.stamp} />
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <Num rotulo="Custo previsto da semana" valor={fmtR(r.semana.custo)} sub="soma das ações por semana" />
+        <Num rotulo="Projeção de custo do mês" valor={fmtR(r.mes.projecao)} sub={`custo semanal × ${v.semanasMes || 4} semanas + custos únicos do mês`} />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr style={{ color: "#6B7280" }}>
-              {["Canal", "Capital (real/meta)", "Advisor (real/meta)", "Custo /semana", "Gasto semana", "Gasto mês", "Projeção mês"].map((h) => (
+              {["Canal", "Capital (real/meta)", "Advisor (real/meta)", "Custo previsto /semana", "Projeção do mês"].map((h) => (
                 <th key={h} className="text-left font-semibold px-2 py-1 border-b whitespace-nowrap" style={{ borderColor: C.line }}>{h}</th>
               ))}
             </tr>
@@ -185,8 +178,6 @@ export function DemandaResumoBlock({ b, blocks }) {
                 <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{c.naoAplica ? "—" : `${c.realC} / ${c.metaC}`}</td>
                 <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{c.naoAplica ? "—" : `${c.realA} / ${c.metaA}`}</td>
                 <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{fmtR(c.custo)}</td>
-                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6", color: C.date }}>{fmtR(c.gasto)}</td>
-                <td className="px-2 py-1.5 border-b" style={{ borderColor: "#EDEDE6" }}>{fmtR(c.acum)}</td>
                 <td className="px-2 py-1.5 border-b font-semibold" style={{ borderColor: "#EDEDE6" }}>{fmtR(c.projecao)}</td>
               </tr>
             ))}
