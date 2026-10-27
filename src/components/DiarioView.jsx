@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowRight, CalendarClock, Check, Plus, RotateCcw, Star, Tag, X } from "lucide-react";
+import { ArrowRight, CalendarClock, Check, GripVertical, Plus, RotateCcw, Star, Tag, X } from "lucide-react";
 import { C, dateKeyBR, plusDaysBR, todayBR, uid } from "../lib/util.js";
 import { useAutoGrow } from "../lib/autoGrow.js";
 import { DateBR } from "./Blocks.jsx";
@@ -57,14 +57,23 @@ const celaCls = "border rounded-lg px-2.5 py-1.5 text-sm outline-none w-full";
 const celaStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#1F2937" };
 
 /* Caixa de texto que aceita várias linhas e cresce junto com o texto.
-   Enter lança/confirma (onEnter); Shift+Enter quebra a linha. */
+   Enter lança/confirma (onEnter); Shift+Enter ou Alt+Enter quebram a linha. */
 function CaixaTexto({ value, onChange, onEnter, placeholder, style }) {
   const ref = useRef(null);
   useAutoGrow(ref, value, { modo: "minimo" });
   return (
     <textarea ref={ref} rows={1} value={value || ""} placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && onEnter) { e.preventDefault(); onEnter(); } }}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" || e.shiftKey) return; // Shift+Enter: o navegador já quebra a linha
+        e.preventDefault();
+        if (e.altKey) {
+          // Alt+Enter: o navegador não quebra sozinho — insere a quebra no cursor
+          const ta = e.currentTarget;
+          ta.setRangeText(String.fromCharCode(10), ta.selectionStart, ta.selectionEnd, "end");
+          onChange(ta.value);
+        } else if (onEnter) onEnter();
+      }}
       className={celaCls + " leading-5 resize-none overflow-hidden whitespace-pre-wrap"} style={style} />
   );
 }
@@ -225,7 +234,21 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
       .sort((a, b) => (dateKeyBR(b) || "").localeCompare(dateKeyBR(a) || ""))
       .map((dia) => ({ dia, itens: g[dia] }));
   };
-  const ordenar = (itens) => [...itens].sort((a, b) => (b.prioridade - a.prioridade));
+  /* arrastar e soltar: a ordem é a da própria lista (dentro do mesmo dia) */
+  const [arrasto, setArrasto] = useState(null);   // id da tarefa sendo arrastada
+  const [alvo, setAlvo] = useState(null);         // { id, depois } — onde ela vai cair
+  const soltar = () => {
+    if (arrasto && alvo && arrasto !== alvo.id) {
+      const lista = dados.tarefas.filter((t) => t.id !== arrasto);
+      const movida = dados.tarefas.find((t) => t.id === arrasto);
+      const i = lista.findIndex((t) => t.id === alvo.id);
+      lista.splice(alvo.depois ? i + 1 : i, 0, movida);
+      setTarefas(lista);
+    }
+    setArrasto(null);
+    setAlvo(null);
+  };
+  const diaDe = (id) => (dados.tarefas.find((t) => t.id === id) || {}).criadaEm;
 
   const termo = busca.trim().toLowerCase();
   const casaBusca = (t) => (!termo || t.texto.toLowerCase().includes(termo) || t.categoria.toLowerCase().includes(termo))
@@ -323,13 +346,13 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
         )}
       </div>
       <p className="text-xs mb-3" style={{ color: "#9CA3AF" }}>
-        Lance as tarefas aqui — cada uma fica com o dia em que foi criada. ⭐ marca prioridade, FUP agenda o retorno, o assunto organiza e a seta → conclui (vai para Concluídas).
+        Lance as tarefas aqui — cada uma fica com o dia em que foi criada. ⭐ marca prioridade, FUP agenda o retorno, o assunto organiza e a seta → conclui (vai para Concluídas). Arraste pela alça ⋮⋮ para reordenar.
       </p>
 
       {/* lançamento rápido */}
       <div className="rounded-xl border shadow-sm p-2.5 mb-3 flex items-stretch gap-1.5" style={{ borderColor: C.line, background: C.paper }}>
         <CaixaTexto value={novo.texto} onChange={(v) => setNovo({ ...novo, texto: v })} onEnter={adicionar}
-          placeholder="Nova tarefa… (Enter lança · Shift+Enter pula linha)"
+          placeholder="Nova tarefa… (Enter lança · Shift+Enter ou Alt+Enter pula linha)"
           style={{ ...celaStyle, flex: 1, minWidth: 0 }} />
         <EstrelaPrioridade ligada={novo.prioridade} onClick={() => setNovo({ ...novo, prioridade: !novo.prioridade })} />
         <CampoFup valor={novo.fup} onChange={(v) => setNovo({ ...novo, fup: v })} />
@@ -366,8 +389,34 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
           {agrupar(visiveis, "criadaEm").map((g) => (
             <div key={g.dia}>
               {cabecalhoDia(g.dia, g.itens.length)}
-              {ordenar(g.itens).map((t) => (
-                <div key={t.id} className="flex items-stretch gap-1.5 py-1 group">
+              {g.itens.map((t) => (
+                <div key={t.id} className="relative flex items-stretch gap-1.5 py-1 group"
+                  style={{ opacity: arrasto === t.id ? 0.4 : 1 }}
+                  onDragOver={(e) => {
+                    if (!arrasto || arrasto === t.id || diaDe(arrasto) !== t.criadaEm) return; // só dentro do mesmo dia
+                    e.preventDefault();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const depois = e.clientY > r.top + r.height / 2;
+                    if (!alvo || alvo.id !== t.id || alvo.depois !== depois) setAlvo({ id: t.id, depois });
+                  }}
+                  onDrop={(e) => { e.preventDefault(); soltar(); }}>
+                  {alvo && alvo.id === t.id && (
+                    <span className="absolute left-0 right-0 h-0.5 rounded-full pointer-events-none"
+                      style={{ background: C.stamp, [alvo.depois ? "bottom" : "top"]: -1 }} />
+                  )}
+                  <span draggable title="Arraste para reordenar"
+                    onDragStart={(e) => {
+                      setArrasto(t.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", t.id);
+                      const linha = e.currentTarget.parentElement;
+                      e.dataTransfer.setDragImage(linha, 20, linha.offsetHeight / 2);
+                    }}
+                    onDragEnd={() => { setArrasto(null); setAlvo(null); }}
+                    className="shrink-0 self-center cursor-grab active:cursor-grabbing p-0.5 opacity-30 group-hover:opacity-100"
+                    style={{ color: "#9CA3AF" }}>
+                    <GripVertical size={15} />
+                  </span>
                   <CaixaTexto value={t.texto} onChange={(v) => patch(t.id, { texto: v })}
                     onEnter={(e) => document.activeElement && document.activeElement.blur()}
                     style={{ ...celaStyle, flex: 1, minWidth: 0, ...(t.prioridade ? { borderColor: "#F5D28A", background: "#FFFBEB" } : {}) }} />
