@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarClock, Check, Plus, RotateCcw, Star, X } from "lucide-react";
 import { C, dateKeyBR, plusDaysBR, todayBR, uid } from "../lib/util.js";
-import { DateBR, GrowCell } from "./Blocks.jsx";
+import { useAutoGrow } from "../lib/autoGrow.js";
+import { DateBR } from "./Blocks.jsx";
 
 /* Diário em tela única (27/10/2026): no lugar de uma página por dia, uma lista
    só de tarefas. Cada tarefa guarda o dia em que foi lançada, uma data de FUP
@@ -49,6 +50,19 @@ const FUP_COR = {
 
 const celaCls = "border rounded-lg px-2.5 py-1.5 text-sm outline-none w-full";
 const celaStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#1F2937" };
+
+/* Caixa de texto que aceita várias linhas e cresce junto com o texto.
+   Enter lança/confirma (onEnter); Shift+Enter quebra a linha. */
+function CaixaTexto({ value, onChange, onEnter, placeholder, style }) {
+  const ref = useRef(null);
+  useAutoGrow(ref, value, { modo: "minimo" });
+  return (
+    <textarea ref={ref} rows={1} value={value || ""} placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && onEnter) { e.preventDefault(); onEnter(); } }}
+      className={celaCls + " leading-5 resize-none overflow-hidden whitespace-pre-wrap"} style={style} />
+  );
+}
 
 function EstrelaPrioridade({ ligada, onClick }) {
   return (
@@ -138,7 +152,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
   if (mode === "concluidas") {
     const lista = concluidas.filter(casaBusca);
     return (
-      <div className="max-w-4xl mx-auto px-4 py-5">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-5">
         <div className="flex items-center gap-2 mb-1">
           <h1 className="flex-1 text-xl font-semibold" style={{ color: "#1F2937", fontFamily: "Georgia, serif" }}>✅ Concluídas</h1>
           {onIrPara && (
@@ -168,7 +182,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
                     <Check size={12} color="#fff" />
                   </span>
                   {t.prioridade && <Star size={13} fill="#F59E0B" color="#D97706" className="shrink-0" />}
-                  <span className="flex-1 text-sm line-through" style={{ color: "#6B7280", textDecorationColor: "#C3C8CF" }}>{t.texto}</span>
+                  <span className="flex-1 text-sm line-through whitespace-pre-wrap" style={{ color: "#6B7280", textDecorationColor: "#C3C8CF" }}>{t.texto}</span>
                   <span className="text-xs shrink-0 hidden sm:inline" style={{ color: "#9CA3AF" }}>
                     criada {t.criadaEm.slice(0, 5)}{t.fup ? ` · FUP ${t.fup.slice(0, 5)}` : ""}
                   </span>
@@ -203,7 +217,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-5">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-5">
       <div className="flex items-center gap-2 mb-1">
         <h1 className="flex-1 text-xl font-semibold" style={{ color: "#1F2937", fontFamily: "Georgia, serif" }}>📋 Tarefas</h1>
         {onIrPara && (
@@ -220,10 +234,9 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
       {/* lançamento rápido */}
       <div className="rounded-xl border shadow-sm p-2.5 mb-3 flex items-stretch gap-1.5" style={{ borderColor: C.line, background: C.paper }}>
         <EstrelaPrioridade ligada={novo.prioridade} onClick={() => setNovo({ ...novo, prioridade: !novo.prioridade })} />
-        <GrowCell value={novo.texto} onChange={(v) => setNovo({ ...novo, texto: v })}
-          onKeyDown={(e) => { if (e.key === "Enter") adicionar(); }}
-          placeholder="Nova tarefa… (Enter para lançar)"
-          className={celaCls} style={{ ...celaStyle, flex: 1, minWidth: 0 }} />
+        <CaixaTexto value={novo.texto} onChange={(v) => setNovo({ ...novo, texto: v })} onEnter={adicionar}
+          placeholder="Nova tarefa… (Enter lança · Shift+Enter pula linha)"
+          style={{ ...celaStyle, flex: 1, minWidth: 0 }} />
         <CampoFup valor={novo.fup} onChange={(v) => setNovo({ ...novo, fup: v })} />
         <button onClick={adicionar}
           className="shrink-0 self-center flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
@@ -253,8 +266,8 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
               {ordenar(g.itens).map((t) => (
                 <div key={t.id} className="flex items-stretch gap-1.5 py-1 group">
                   <EstrelaPrioridade ligada={t.prioridade} onClick={() => patch(t.id, { prioridade: !t.prioridade })} />
-                  <GrowCell value={t.texto} onChange={(v) => patch(t.id, { texto: v })}
-                    className={celaCls}
+                  <CaixaTexto value={t.texto} onChange={(v) => patch(t.id, { texto: v })}
+                    onEnter={(e) => document.activeElement && document.activeElement.blur()}
                     style={{ ...celaStyle, flex: 1, minWidth: 0, ...(t.prioridade ? { borderColor: "#F5D28A", background: "#FFFBEB" } : {}) }} />
                   <CampoFup valor={t.fup} onChange={(v) => patch(t.id, { fup: v })} />
                   <button onClick={() => patch(t.id, { concluida: true, concluidaEm: todayBR() })}
