@@ -58,7 +58,7 @@ const celaStyle = { borderColor: "#E3E5DE", background: "#fff", color: "#1F2937"
 
 /* Caixa de texto que aceita várias linhas e cresce junto com o texto.
    Enter lança/confirma (onEnter); Shift+Enter ou Alt+Enter quebram a linha. */
-function CaixaTexto({ value, onChange, onEnter, placeholder, style }) {
+function CaixaTexto({ value, onChange, onEnter, placeholder, style, className = "" }) {
   const ref = useRef(null);
   useAutoGrow(ref, value, { modo: "minimo" });
   return (
@@ -74,7 +74,7 @@ function CaixaTexto({ value, onChange, onEnter, placeholder, style }) {
           onChange(ta.value);
         } else if (onEnter) onEnter();
       }}
-      className={celaCls + " leading-5 resize-none overflow-hidden whitespace-pre-wrap"} style={style} />
+      className={celaCls + " leading-5 resize-none overflow-hidden whitespace-pre-wrap " + className} style={style} />
   );
 }
 
@@ -89,19 +89,19 @@ function EstrelaPrioridade({ ligada, onClick }) {
 }
 
 /* FUP: etiqueta com a data que vira calendário ao clicar */
-function CampoFup({ valor, onChange, largura = 118 }) {
+function CampoFup({ valor, onChange }) {
   const [editando, setEditando] = useState(false);
   if (editando) {
     return (
       <DateBR value={valor} autoFocus onBlur={() => setEditando(false)}
         onChange={(v) => { onChange(v); setEditando(false); }}
-        className="border rounded-lg px-1.5 py-1 text-xs outline-none shrink-0 self-center"
-        style={{ ...celaStyle, width: largura }} />
+        className="border rounded-lg px-1.5 py-1 text-xs outline-none shrink-0 self-center w-28 sm:w-[118px]"
+        style={celaStyle} />
     );
   }
   const est = fupEstado(valor);
   return (
-    <span className="shrink-0 self-center flex items-center gap-0.5" style={{ width: largura }}>
+    <span className="shrink-0 self-center flex items-center gap-0.5 w-24 sm:w-[118px]">
       <button onClick={() => setEditando(true)} title={valor ? "Data do FUP — clique para mudar" : "Definir data de FUP"}
         className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
         style={valor ? FUP_COR[est] : { color: "#9CA3AF", border: "1px dashed #D9DDE3" }}>
@@ -131,7 +131,7 @@ const corAssunto = (nome) => {
 
 /* Assunto: etiqueta que abre um menu com as áreas do app + assuntos criados,
    e um campo para criar um novo na hora. */
-function CampoAssunto({ valor, opcoes, onChange, onCriar, largura = 150 }) {
+function CampoAssunto({ valor, opcoes, onChange, onCriar }) {
   const [aberto, setAberto] = useState(false);
   const [novo, setNovo] = useState("");
   const criar = () => {
@@ -142,7 +142,7 @@ function CampoAssunto({ valor, opcoes, onChange, onCriar, largura = 150 }) {
     setAberto(false);
   };
   return (
-    <span className="relative shrink-0 self-center" style={{ width: largura }}>
+    <span className="relative self-center flex-1 min-w-0 sm:flex-none sm:shrink-0 sm:w-[150px]">
       <button onClick={() => setAberto(!aberto)} title={valor ? `Assunto: ${valor} — clique para mudar` : "Definir o assunto"}
         className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap overflow-hidden"
         style={valor ? corAssunto(valor) : { color: "#9CA3AF", border: "1px dashed #D9DDE3" }}>
@@ -267,7 +267,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
   if (mode === "concluidas") {
     const lista = concluidas.filter(casaBusca);
     return (
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-5">
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-5">
         <div className="flex items-center gap-2 mb-1">
           <h1 className="flex-1 text-xl font-semibold" style={{ color: "#1F2937", fontFamily: "Georgia, serif" }}>✅ Concluídas</h1>
           {onIrPara && (
@@ -292,24 +292,24 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
             <div key={g.dia}>
               {cabecalhoDia(g.dia, g.itens.length)}
               {g.itens.map((t) => (
-                <div key={t.id} className="flex items-center gap-2 py-1.5 px-1 group">
+                <div key={t.id} className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 py-2 sm:py-1.5 px-1 group border-b last:border-b-0 sm:border-b-0" style={{ borderColor: "#F0F0EA" }}>
                   <span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: C.stamp }}>
                     <Check size={12} color="#fff" />
                   </span>
                   {t.prioridade && <Star size={13} fill="#F59E0B" color="#D97706" className="shrink-0" />}
                   {t.categoria && (
-                    <span className="shrink-0 px-2 py-0.5 rounded-md text-xs font-medium" style={corAssunto(t.categoria)}>{t.categoria}</span>
+                    <span className="shrink-0 order-2 sm:order-none px-2 py-0.5 rounded-md text-xs font-medium" style={corAssunto(t.categoria)}>{t.categoria}</span>
                   )}
-                  <span className="flex-1 text-sm line-through whitespace-pre-wrap" style={{ color: "#6B7280", textDecorationColor: "#C3C8CF" }}>{t.texto}</span>
+                  <span className="grow basis-[80%] min-w-0 sm:basis-auto sm:flex-1 text-sm line-through whitespace-pre-wrap" style={{ color: "#6B7280", textDecorationColor: "#C3C8CF" }}>{t.texto}</span>
                   <span className="text-xs shrink-0 hidden sm:inline" style={{ color: "#9CA3AF" }}>
                     criada {t.criadaEm.slice(0, 5)}{t.fup ? ` · FUP ${t.fup.slice(0, 5)}` : ""}
                   </span>
                   <button onClick={() => patch(t.id, { concluida: false, concluidaEm: null })}
-                    className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
+                    className="shrink-0 order-3 sm:order-none ml-auto sm:ml-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium"
                     style={{ background: "#EEF0F2", color: "#4B5563" }} title="Voltar para as tarefas em aberto">
                     <RotateCcw size={12} /> Reabrir
                   </button>
-                  <button onClick={() => excluir(t.id)} className="shrink-0 p-1 opacity-40 group-hover:opacity-100"
+                  <button onClick={() => excluir(t.id)} className="shrink-0 order-3 sm:order-none p-1 opacity-40 group-hover:opacity-100"
                     style={{ color: C.danger }} title="Excluir">
                     <X size={14} />
                   </button>
@@ -335,8 +335,8 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
   );
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-5">
-      <div className="flex items-center gap-2 mb-1">
+    <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-5">
+      <div className="flex items-center gap-2 mb-3 sm:mb-1">
         <h1 className="flex-1 text-xl font-semibold" style={{ color: "#1F2937", fontFamily: "Georgia, serif" }}>📋 Tarefas</h1>
         {onIrPara && (
           <button onClick={() => onIrPara("diario-concluidas")} className="px-3 py-1.5 rounded-lg text-sm font-medium"
@@ -345,15 +345,15 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
           </button>
         )}
       </div>
-      <p className="text-xs mb-3" style={{ color: "#9CA3AF" }}>
+      <p className="hidden sm:block text-xs mb-3" style={{ color: "#9CA3AF" }}>
         Lance as tarefas aqui — cada uma fica com o dia em que foi criada. ⭐ marca prioridade, FUP agenda o retorno, o assunto organiza e a seta → conclui (vai para Concluídas). Arraste pela alça ⋮⋮ para reordenar.
       </p>
 
       {/* lançamento rápido */}
-      <div className="rounded-xl border shadow-sm p-2.5 mb-3 flex items-stretch gap-1.5" style={{ borderColor: C.line, background: C.paper }}>
+      <div className="rounded-xl border shadow-sm p-2.5 mb-3 flex flex-wrap sm:flex-nowrap items-stretch gap-1.5" style={{ borderColor: C.line, background: C.paper }}>
         <CaixaTexto value={novo.texto} onChange={(v) => setNovo({ ...novo, texto: v })} onEnter={adicionar}
           placeholder="Nova tarefa… (Enter lança · Shift+Enter ou Alt+Enter pula linha)"
-          style={{ ...celaStyle, flex: 1, minWidth: 0 }} />
+          className="basis-full sm:basis-0 grow min-w-0" style={celaStyle} />
         <EstrelaPrioridade ligada={novo.prioridade} onClick={() => setNovo({ ...novo, prioridade: !novo.prioridade })} />
         <CampoFup valor={novo.fup} onChange={(v) => setNovo({ ...novo, fup: v })} />
         <CampoAssunto valor={novo.categoria} opcoes={assuntos} onCriar={criarAssunto(null)}
@@ -361,7 +361,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
         <button onClick={adicionar}
           className="shrink-0 self-center flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
           style={{ background: C.stamp, opacity: novo.texto.trim() ? 1 : 0.5 }}>
-          <Plus size={14} /> <span className="hidden sm:inline">Lançar</span>
+          <Plus size={14} /> Lançar
         </button>
       </div>
 
@@ -371,13 +371,13 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
         {chip("fup", `FUP: ${nFupHoje} hoje${nFupVencido ? ` · ${nFupVencido} vencido${nFupVencido > 1 ? "s" : ""}` : ""}`,
           nFupVencido ? FUP_COR.vencido : FUP_COR.hoje)}
         <select value={filtroAssunto} onChange={(e) => setFiltroAssunto(e.target.value)}
-          className="ml-auto border rounded-full px-2.5 py-1 text-xs outline-none"
+          className="sm:ml-auto max-w-full border rounded-full px-2.5 py-1 text-xs outline-none"
           style={{ ...celaStyle, ...(filtroAssunto ? corAssunto(filtroAssunto) : {}) }}>
           <option value="">Todos os assuntos</option>
           {assuntos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…"
-          className=" border rounded-full px-3 py-1 text-xs outline-none" style={{ ...celaStyle, width: 160 }} />
+          className="flex-1 min-w-[120px] sm:flex-none sm:w-40 border rounded-full px-3 py-1 text-xs outline-none" style={celaStyle} />
       </div>
 
       {visiveis.length === 0 ? (
@@ -385,13 +385,13 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
           {abertas.length ? "Nada neste filtro." : "Nenhuma tarefa em aberto. Lance a primeira aí em cima."}
         </p>
       ) : (
-        <div className="rounded-xl border shadow-sm px-3 pb-3" style={{ borderColor: C.line, background: C.paper }}>
+        <div className="rounded-xl border shadow-sm px-2 sm:px-3 pb-3" style={{ borderColor: C.line, background: C.paper }}>
           {agrupar(visiveis, "criadaEm").map((g) => (
             <div key={g.dia}>
               {cabecalhoDia(g.dia, g.itens.length)}
               {g.itens.map((t) => (
-                <div key={t.id} className="relative flex items-stretch gap-1.5 py-1 group"
-                  style={{ opacity: arrasto === t.id ? 0.4 : 1 }}
+                <div key={t.id} className="relative flex flex-wrap sm:flex-nowrap items-stretch gap-1.5 py-2 sm:py-1 group border-b last:border-b-0 sm:border-b-0"
+                  style={{ opacity: arrasto === t.id ? 0.4 : 1, borderColor: "#F0F0EA" }}
                   onDragOver={(e) => {
                     if (!arrasto || arrasto === t.id || diaDe(arrasto) !== t.criadaEm) return; // só dentro do mesmo dia
                     e.preventDefault();
@@ -413,13 +413,14 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
                       e.dataTransfer.setDragImage(linha, 20, linha.offsetHeight / 2);
                     }}
                     onDragEnd={() => { setArrasto(null); setAlvo(null); }}
-                    className="shrink-0 self-center cursor-grab active:cursor-grabbing p-0.5 opacity-30 group-hover:opacity-100"
+                    className="hidden sm:block shrink-0 self-center cursor-grab active:cursor-grabbing p-0.5 opacity-30 group-hover:opacity-100"
                     style={{ color: "#9CA3AF" }}>
                     <GripVertical size={15} />
                   </span>
                   <CaixaTexto value={t.texto} onChange={(v) => patch(t.id, { texto: v })}
                     onEnter={(e) => document.activeElement && document.activeElement.blur()}
-                    style={{ ...celaStyle, flex: 1, minWidth: 0, ...(t.prioridade ? { borderColor: "#F5D28A", background: "#FFFBEB" } : {}) }} />
+                    className="basis-full sm:basis-0 grow min-w-0"
+                    style={{ ...celaStyle, ...(t.prioridade ? { borderColor: "#F5D28A", background: "#FFFBEB" } : {}) }} />
                   <EstrelaPrioridade ligada={t.prioridade} onClick={() => patch(t.id, { prioridade: !t.prioridade })} />
                   <CampoFup valor={t.fup} onChange={(v) => patch(t.id, { fup: v })} />
                   <CampoAssunto valor={t.categoria} opcoes={assuntos} onCriar={criarAssunto(t.id)}
@@ -429,7 +430,7 @@ export default function DiarioView({ diario, onChange, mode = "abertas", onIrPar
                     style={{ borderColor: C.stamp, color: C.stamp }} title="Concluir — vai para a página Concluídas">
                     <ArrowRight size={15} />
                   </button>
-                  <button onClick={() => excluir(t.id)} className="shrink-0 self-center p-1 opacity-30 group-hover:opacity-100"
+                  <button onClick={() => excluir(t.id)} className="shrink-0 self-center p-1 opacity-50 sm:opacity-30 group-hover:opacity-100"
                     style={{ color: C.danger }} title="Excluir (Ctrl+Z desfaz)">
                     <X size={14} />
                   </button>
